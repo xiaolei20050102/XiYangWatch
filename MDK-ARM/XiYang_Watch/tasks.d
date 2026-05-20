@@ -1,0 +1,16 @@
+xiyang_watch\tasks.o: ../Middlewares/Third_Party/FreeRTOS/Source/tasks.c
+xiyang_watch\tasks.o: E:\New_Keil\Keil_v5\ARM\ARMCC\Bin\..\include\stdlib.h
+xiyang_watch\tasks.o: E:\New_Keil\Keil_v5\ARM\ARMCC\Bin\..\include\string.h
+xiyang_watch\tasks.o: ../Middlewares/Third_Party/FreeRTOS/Source/include/FreeRTOS.h
+xiyang_watch\tasks.o: E:\New_Keil\Keil_v5\ARM\ARMCC\Bin\..\include\stddef.h
+xiyang_watch\tasks.o: E:\New_Keil\Keil_v5\ARM\ARMCC\Bin\..\include\stdint.h
+xiyang_watch\tasks.o: ../Core/Inc/FreeRTOSConfig.h
+xiyang_watch\tasks.o: ../Middlewares/Third_Party/FreeRTOS/Source/include/projdefs.h
+xiyang_watch\tasks.o: ../Middlewares/Third_Party/FreeRTOS/Source/include/portable.h
+xiyang_watch\tasks.o: ../Middlewares/Third_Party/FreeRTOS/Source/include/deprecated_definitions.h
+xiyang_watch\tasks.o: ../Middlewares/Third_Party/FreeRTOS/Source/portable/RVDS/ARM_CM4F/portmacro.h
+xiyang_watch\tasks.o: ../Middlewares/Third_Party/FreeRTOS/Source/include/mpu_wrappers.h
+xiyang_watch\tasks.o: ../Middlewares/Third_Party/FreeRTOS/Source/include/task.h
+xiyang_watch\tasks.o: ../Middlewares/Third_Party/FreeRTOS/Source/include/list.h
+xiyang_watch\tasks.o: ../Middlewares/Third_Party/FreeRTOS/Source/include/timers.h
+xiyang_watch\tasks.o: ../Middlewares/Third_Party/FreeRTOS/Source/include/stack_macros.h

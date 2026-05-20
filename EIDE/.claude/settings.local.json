@@ -1,0 +1,23 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(ls -la \"e:/XiYangWatch/XiYang_Watch/Docs/\" 2>/dev/null || echo \"Directory not found\")",
+      "Read(//e/XiYangWatch/XiYang_Watch/Docs/**)",
+      "Read(//e/XiYangWatch/XiYang_Watch/BSP/LCD/**)",
+      "Read(//e/XiYangWatch/XiYang_Watch/Core/Inc/**)",
+      "Read(//e/XiYangWatch/XiYang_Watch/Core/Src/**)",
+      "Bash(ls -la /e/XiYangWatch/ 2>/dev/null || echo \"Directory not found\")",
+      "Read(//e/XiYangWatch//**)",
+      "Bash(ls -la /e/ 2>/dev/null | head -40)",
+      "Read(//e//**)",
+      "Bash(ls -la /c/Users/ 2>/dev/null | head -30)",
+      "Read(//c/Users//**)",
+      "Bash(find /e/ -maxdepth 2 -type d -iname \"*ov*watch*\" -o -type d -iname \"*ovwatch*\" -o -type d -iname \"*ov_watch*\" 2>/dev/null | head -30)",
+      "Bash(find /e/ -maxdepth 4 -name \"*.ioc\" -path \"*ov*watch*\" -o -name \"*.ioc\" -path \"*ovwatch*\" -o -name \"*.ioc\" -path \"*ov_watch*\" 2>/dev/null | head -20)"
+    ],
+    "additionalDirectories": [
+      "e:\\XiYangWatch\\XiYang_Watch\\BSP\\LCD",
+      "e:\\XiYangWatch\\XiYang_Watch\\Core\\Src"
+    ]
+  }
+}
