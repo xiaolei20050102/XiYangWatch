@@ -29,6 +29,7 @@
 /* USER CODE BEGIN Includes */
 #include "string.h"
 #include "lcd_st7789.h"
+#include "touch_cst816s.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -116,9 +117,14 @@ HAL_GPIO_WritePin(LED_GPIO_Port, LED_Pin, GPIO_PIN_SET);    // LED 灭
   ST7789_Init();
   HAL_TIM_PWM_Start(&htim2, TIM_CHANNEL_2);
   __HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_2, 50);
+
+
   ST7789_Test();
 
+  ST7789_Fill(COLOR_BLACK);
 
+  CST816_Init();
+  CST816_Test();
 
   /* USER CODE END 2 */
 

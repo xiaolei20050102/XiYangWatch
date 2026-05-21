@@ -10,8 +10,8 @@
  * @note    OFFSET_Y=20 是模组 bonding 偏移，不同模组可能不同
  *
  * @par 修改记录:
- * - 2025-01-15  v1.0  创建文件
- * - 2026-05-20  修复 SPI 引脚、RST 引脚、OFFSET_Y，抽象 HAL 调用
+ * - 2026-05-20  v1.0  创建文件
+ * - 2026-05-21  修复 SPI 引脚、RST 引脚、OFFSET_Y，抽象 HAL 调用
  */
 
 #ifndef __LEC_ST7789_H__

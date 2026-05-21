@@ -17,7 +17,9 @@
     ],
     "additionalDirectories": [
       "e:\\XiYangWatch\\XiYang_Watch\\BSP\\LCD",
-      "e:\\XiYangWatch\\XiYang_Watch\\Core\\Src"
+      "e:\\XiYangWatch\\XiYang_Watch\\Core\\Src",
+      "e:\\XiYangWatch\\XiYang_Watch\\BSP\\Touch",
+      "e:\\XiYangWatch\\XiYang_Watch\\Docs\\learning"
     ]
   }
 }

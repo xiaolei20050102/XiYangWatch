@@ -80,6 +80,8 @@ virtualFolder:
       files:
         - path: ../BSP/LCD/lcd_st7789.h
         - path: ../BSP/LCD/lcd_st7789.c
+        - path: ../BSP/Touch/touch_cst816s.h
+        - path: ../BSP/Touch/touch_cst816s.c
       folders: []
     - name: ::CMSIS
       files: []
@@ -104,6 +106,7 @@ targets:
         - ../Drivers/CMSIS/Device/ST/STM32F4xx/Include
         - ../Drivers/CMSIS/Include
         - ../BSP/LCD
+        - ../BSP/Touch
         - .cmsis/include
         - ../MDK-ARM/RTE/_XiYang_Watch
       libList: []
