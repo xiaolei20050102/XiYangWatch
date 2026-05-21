@@ -19,8 +19,14 @@
 
 /* ========================== 头文件包含 ========================== */
 #include "spi.h"
+#include "tim.h"
 
 /* ========================== 引脚 & 外设定义 ========================== */
+
+/* 背光 PWM：TIM2_CH2，Period=99，占空比 0~99 */
+#define LCD_BL_TIM    &htim2
+#define LCD_BL_CH     TIM_CHANNEL_2
+#define LCD_BL_MAX    99   /* PWM 满占空比（对应 100% 亮度） */
 
 #define LCD_PIN_CS    GPIO_PIN_1
 #define LCD_PORT_CS   GPIOB
@@ -67,11 +73,13 @@
 
 void ST7789_Init(void);
 void ST7789_SendCmd(uint8_t cmd, const uint8_t* data, uint16_t len);
+void ST7789_FlushArea(uint16_t x, uint16_t y, uint16_t w, uint16_t h, const uint8_t* data);
 void ST7789_Fill(uint16_t color);
 void ST7789_DrawPixel(uint16_t x, uint16_t y, uint16_t color);
 void ST7789_DrawRect(uint16_t x, uint16_t y, uint16_t w, uint16_t h, uint16_t color);
 void ST7789_DrawLine(uint16_t x1, uint16_t y1, uint16_t x2, uint16_t y2, uint16_t color);
 void ST7789_DrawCircle(uint16_t x0, uint16_t y0, uint16_t r, uint16_t color);
 void ST7789_Test(void);
+void ST7789_SetBacklight(uint8_t percent);  /* 0~100, 0=灭 100=最亮 */
 
 #endif

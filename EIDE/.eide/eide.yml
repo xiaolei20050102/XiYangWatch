@@ -3,7 +3,8 @@ name: XiYang_Watch
 type: ARM
 deviceName: null
 packDir: null
-srcDirs: []
+srcDirs:
+  - ../Middlewares/LVGL/src
 virtualFolder:
   name: <virtual_root>
   files: []
@@ -76,6 +77,15 @@ virtualFolder:
             - path: ../Middlewares/Third_Party/FreeRTOS/Source/portable/MemMang/heap_4.c
             - path: ../Middlewares/Third_Party/FreeRTOS/Source/portable/RVDS/ARM_CM4F/port.c
           folders: []
+        - name: LVGL_porting
+          files:
+            - path: ../Middlewares/LVGL/porting/lv_port_disp.c
+            - path: ../Middlewares/LVGL/porting/lv_port_indev.c
+            - path: ../Middlewares/LVGL/porting/lv_port_disp.h
+            - path: ../Middlewares/LVGL/porting/lv_port_indev.h
+            - path: ../Middlewares/LVGL/src/lv_init.c
+            - path: ../Middlewares/LVGL/fonts/cascadia_mono_16_1bpp.c
+          folders: []
     - name: BSP
       files:
         - path: ../BSP/LCD/lcd_st7789.h
@@ -96,6 +106,7 @@ targets:
       defineList:
         - USE_HAL_DRIVER
         - STM32F411xE
+        - LV_CONF_INCLUDE_SIMPLE
       incList:
         - ../Core/Inc
         - ../Drivers/STM32F4xx_HAL_Driver/Inc
@@ -107,10 +118,22 @@ targets:
         - ../Drivers/CMSIS/Include
         - ../BSP/LCD
         - ../BSP/Touch
+        - ../Middlewares/LVGL
+        - ../Middlewares/LVGL/src
+        - ../Middlewares/LVGL/porting
+        - ../Middlewares/LVGL/fonts
         - .cmsis/include
         - ../MDK-ARM/RTE/_XiYang_Watch
       libList: []
-    excludeList: []
+    excludeList:
+      - ../Middlewares/LVGL/src/debugging
+      - ../Middlewares/LVGL/src/drivers
+      - ../Middlewares/LVGL/demos
+      - ../Middlewares/LVGL/porting/osal
+      - ../Middlewares/LVGL/src/draw/sw/blend/helium
+      - ../Middlewares/LVGL/src/draw/sw/blend/neon
+      - ../Middlewares/LVGL/src/draw/sw/blend/arm2d
+      - ../Middlewares/LVGL/src/draw/sw/blend/riscv_v
     settings: {}
     toolchain: AC5
     toolchainConfigMap:
@@ -221,9 +244,9 @@ targets:
         baseAddr: ""
         bin: ""
         cpuInfo:
-          cpuName: "null"
-          vendor: "null"
-        otherCmds: ""
+          cpuName: STM32F411CE
+          vendor: ST
+        otherCmds: -device STM32F411CE -if SWD -autoconnect 1
         proType: 1
         speed: 8000
     uploader: JLink

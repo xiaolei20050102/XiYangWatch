@@ -29,7 +29,7 @@
 /* USER CODE BEGIN Includes */
 #include "string.h"
 #include "lcd_st7789.h"
-#include "touch_cst816s.h"
+#include "lvgl.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -105,26 +105,10 @@ int main(void)
 	uint8_t ch[] = "XiYangWatch\r\n";
 	HAL_UART_Transmit(&huart2,ch,strlen((char *)ch),1000);
 
-	
-	HAL_TIM_PWM_Start(&htim2, TIM_CHANNEL_2);
-	__HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_2, 80);  // 80% 亮度，先拉满
+	ST7789_SetBacklight(80);
 
-
-HAL_GPIO_WritePin(LED_GPIO_Port, LED_Pin, GPIO_PIN_RESET);  // LED 亮
-HAL_Delay(200);
-HAL_GPIO_WritePin(LED_GPIO_Port, LED_Pin, GPIO_PIN_SET);    // LED 灭
-
-  ST7789_Init();
-  HAL_TIM_PWM_Start(&htim2, TIM_CHANNEL_2);
-  __HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_2, 50);
-
-
-  ST7789_Test();
-
-  ST7789_Fill(COLOR_BLACK);
-
-  CST816_Init();
-  CST816_Test();
+	ST7789_Init();
+	ST7789_Fill(COLOR_BLACK);
 
   /* USER CODE END 2 */
 
@@ -213,6 +197,7 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
   if (htim->Instance == TIM5)
   {
     HAL_IncTick();
+    lv_tick_inc(1);
   }
   /* USER CODE BEGIN Callback 1 */
 

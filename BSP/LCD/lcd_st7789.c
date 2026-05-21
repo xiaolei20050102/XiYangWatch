@@ -351,3 +351,54 @@ void ST7789_Test(void)
     /* 8. 结束画面：品红色 = 自检通过 */
     ST7789_Fill(COLOR_MAGENTA);
 }
+
+/**
+ * @brief   向指定区域写入像素数据（供 LVGL disp_flush 调用）
+ * @param   x      [入] 起始列坐标（0 ~ LCD_WIDTH-1，LCD 坐标系）
+ * @param   y      [入] 起始行坐标（0 ~ LCD_HEIGHT-1，LCD 坐标系）
+ * @param   w      [入] 区域宽度（像素）
+ * @param   h      [入] 区域高度（像素）
+ * @param   data   [入] 16-bit RGB565 像素数据缓冲区
+ * @retval  无
+ * @note    自动叠加 OFFSET_Y 偏移；CS 全区域保持低，一次 SPI 连续发送提高效率
+ */
+void ST7789_FlushArea(uint16_t x, uint16_t y, uint16_t w, uint16_t h, const uint8_t* data)
+{
+	uint16_t xs = x, xe = x + w - 1;
+	uint16_t ys = y + OFFSET_Y, ye = y + OFFSET_Y + h - 1;
+
+	{ uint8_t p[] = {xs>>8, xs&0xFF, xe>>8, xe&0xFF}; ST7789_SendCmd(0x2A, p, 4); }
+	{ uint8_t p[] = {ys>>8, ys&0xFF, ye>>8, ye&0xFF}; ST7789_SendCmd(0x2B, p, 4); }
+
+	LCD_CS_LOW();
+	LCD_DC_LOW();
+	uint8_t ramwr = 0x2C;
+	LCD_SPI_TX(&ramwr, 1);
+	LCD_DC_HIGH();
+
+	LCD_SPI_TX((uint8_t*)data, (uint32_t)w * h * 2);
+
+	LCD_CS_HIGH();
+}
+
+/**
+ * @brief   设置 LCD 背光亮度（TIM2_CH2 PWM）
+ * @param   percent  [入] 亮度百分比 0~100（0=灭, 100=最亮）
+ * @retval  无
+ * @note    首次调用自动启动 PWM，之后只调占空比
+ *          PWM 分辨率：Period=99，实际占空比 = percent * 99 / 100
+ */
+void ST7789_SetBacklight(uint8_t percent)
+{
+    static uint8_t started = 0;
+
+    if (percent > 100) percent = 100;
+
+    if (!started) {
+        HAL_TIM_PWM_Start(LCD_BL_TIM, LCD_BL_CH);
+        started = 1;
+    }
+
+    uint16_t pulse = (uint16_t)percent * LCD_BL_MAX / 100;
+    __HAL_TIM_SET_COMPARE(LCD_BL_TIM, LCD_BL_CH, pulse);
+}
