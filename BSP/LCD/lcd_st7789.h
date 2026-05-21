@@ -68,7 +68,10 @@
 void ST7789_Init(void);
 void ST7789_SendCmd(uint8_t cmd, const uint8_t* data, uint16_t len);
 void ST7789_Fill(uint16_t color);
+void ST7789_DrawPixel(uint16_t x, uint16_t y, uint16_t color);
 void ST7789_DrawRect(uint16_t x, uint16_t y, uint16_t w, uint16_t h, uint16_t color);
+void ST7789_DrawLine(uint16_t x1, uint16_t y1, uint16_t x2, uint16_t y2, uint16_t color);
+void ST7789_DrawCircle(uint16_t x0, uint16_t y0, uint16_t r, uint16_t color);
 void ST7789_Test(void);
 
 #endif

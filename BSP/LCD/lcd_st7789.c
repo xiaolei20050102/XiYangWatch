@@ -1,18 +1,19 @@
 /**
  * @file    lcd_st7789.c
  * @author  xiyangdaxia
- * @brief   ST7789 LCD 驱动实现（240x280 面板，SPI2，Mode 0）
- * @date    2026-5-20
- * @version v1.0
+ * @brief   ST7789 LCD 驱动实现（240x280 面板，SPI2 Mode 0，RGB565）
+ * @date    2026-05-21
+ * @version v1.2
  *
- * @details 硬件抽象通过 lcd_st7789.h 中的宏完成，本文件不直接调用 HAL。
- *          初始化序列参考 OV-Watch v2.4.3，已验证通过。
+ * @details 本文件不直接调用 HAL，所有硬件操作通过 lcd_st7789.h 中的宏完成
+ *          初始化序列参考 OV-Watch v2.4.3，经验证可正常工作
  *
- * @note    OFFSET_Y = 20 是本模组的 bonding 偏移，更换模组需确认此值
+ * @note    更换模组需确认两个参数：OFFSET_Y（bonding 偏移）、SPI 模式（Mode 0/3）
  *
  * @par 修改记录:
- * - 2025-01-15  v1.0  创建文件，实现基本初始化
- * - 2026-05-20  修复 SPI/RST 引脚错误，增加 OFFSET_Y，抽象 HAL 调用
+ * - 2026-05-20  v1.0  创建文件，实现 ST7789 基本初始化和全屏填充
+ * - 2026-05-21  v1.1  修复 SPI 引脚(hspi1→hspi2)、RST 引脚(PB2→PB12)、增加 OFFSET_Y 偏移
+ * - 2026-05-21  v1.2  抽象 HAL 调用为宏，新增 DrawPixel/DrawLine/DrawCircle，优化 DrawRect 行缓冲，完善自检流程
  */
 
 #include "lcd_st7789.h"
@@ -141,6 +142,31 @@ void ST7789_Fill(uint16_t color)
 }
 
 /**
+ * @brief   绘制单个像素点
+ * @param   x      [入] 列坐标（0 ~ LCD_WIDTH-1）
+ * @param   y      [入] 行坐标（0 ~ LCD_HEIGHT-1）
+ * @param   color  [入] 16-bit RGB565 颜色值
+ * @retval  无
+ * @note    单点发送：CASET(1列) + RASET(1行) + RAMWR(2字节)
+ */
+void ST7789_DrawPixel(uint16_t x, uint16_t y, uint16_t color)
+{
+    uint16_t gy = y + OFFSET_Y;
+
+    { uint8_t p[] = {x>>8, x&0xFF, x>>8, x&0xFF}; ST7789_SendCmd(0x2A, p, 4); }
+    { uint8_t p[] = {gy>>8, gy&0xFF, gy>>8, gy&0xFF}; ST7789_SendCmd(0x2B, p, 4); }
+
+    LCD_CS_LOW();
+    LCD_DC_LOW();
+    uint8_t ramwr = 0x2C;
+    LCD_SPI_TX(&ramwr, 1);
+    LCD_DC_HIGH();
+    uint8_t p[2] = {(color >> 8) & 0xFF, color & 0xFF};
+    LCD_SPI_TX(p, 2);
+    LCD_CS_HIGH();
+}
+
+/**
  * @brief   在指定区域填充纯色（LCD 坐标系，自动叠加 OFFSET_Y）
  * @param   x      [入] 起始列坐标（0 ~ LCD_WIDTH-1）
  * @param   y      [入] 起始行坐标（0 ~ LCD_HEIGHT-1）
@@ -148,7 +174,7 @@ void ST7789_Fill(uint16_t color)
  * @param   h      [入] 区域高度（像素）
  * @param   color  [入] 16-bit RGB565 颜色值
  * @retval  无
- * @note    自动将 LCD 坐标转换为 GRAM 坐标（y += OFFSET_Y）
+ * @note    使用行缓冲，每行一次 SPI 发送（w×2 字节），比逐像素快 w 倍
  */
 void ST7789_DrawRect(uint16_t x, uint16_t y, uint16_t w, uint16_t h, uint16_t color)
 {
@@ -158,29 +184,106 @@ void ST7789_DrawRect(uint16_t x, uint16_t y, uint16_t w, uint16_t h, uint16_t co
     uint16_t xs = x, xe = x + w - 1;
     uint16_t ys = y + OFFSET_Y, ye = y + OFFSET_Y + h - 1;
 
-    /* CASET */
     { uint8_t p[] = {xs>>8, xs&0xFF, xe>>8, xe&0xFF}; ST7789_SendCmd(0x2A, p, 4); }
-    /* RASET */
     { uint8_t p[] = {ys>>8, ys&0xFF, ye>>8, ye&0xFF}; ST7789_SendCmd(0x2B, p, 4); }
 
-    /* RAMWR + 数据 */
     LCD_CS_LOW();
     LCD_DC_LOW();
     uint8_t ramwr = 0x2C;
     LCD_SPI_TX(&ramwr, 1);
     LCD_DC_HIGH();
 
-    uint32_t total = (uint32_t)w * h;
-    for (uint32_t i = 0; i < total; i++) {
-        uint8_t p[2] = {hi, lo};
-        LCD_SPI_TX(p, 2);
+    /* 行缓冲：一次 SPI 发一整行 */
+    uint8_t line_buf[w * 2];
+    for (uint16_t i = 0; i < w; i++) {
+        line_buf[i * 2]     = hi;
+        line_buf[i * 2 + 1] = lo;
+    }
+    for (uint16_t row = 0; row < h; row++) {
+        LCD_SPI_TX(line_buf, sizeof(line_buf));
     }
 
     LCD_CS_HIGH();
 }
 
 /**
- * @brief  LCD 全面自检：纯色填充 → 彩色条纹 → 边框 → 十字线 → 棋盘格
+ * @brief   Bresenham 画线算法
+ * @param   x1     [入] 起点列坐标
+ * @param   y1     [入] 起点行坐标
+ * @param   x2     [入] 终点列坐标
+ * @param   y2     [入] 终点行坐标
+ * @param   color  [入] 16-bit RGB565 颜色值
+ * @retval  无
+ * @note    经典整数 Bresenham，无浮点运算
+ */
+void ST7789_DrawLine(uint16_t x1, uint16_t y1, uint16_t x2, uint16_t y2, uint16_t color)
+{
+    int16_t dx = (int16_t)x2 - (int16_t)x1;
+    int16_t dy = (int16_t)y2 - (int16_t)y1;
+    int16_t stepX = (dx > 0) ? 1 : -1;
+    int16_t stepY = (dy > 0) ? 1 : -1;
+    dx = (dx > 0) ? dx : -dx;
+    dy = (dy > 0) ? dy : -dy;
+
+    int16_t x = x1, y = y1;
+    ST7789_DrawPixel(x, y, color);
+
+    if (dx > dy) {
+        int16_t err = dx / 2;
+        for (int16_t i = 0; i < dx; i++) {
+            x += stepX;
+            err -= dy;
+            if (err < 0) { y += stepY; err += dx; }
+            ST7789_DrawPixel(x, y, color);
+        }
+    } else {
+        int16_t err = dy / 2;
+        for (int16_t i = 0; i < dy; i++) {
+            y += stepY;
+            err -= dx;
+            if (err < 0) { x += stepX; err += dy; }
+            ST7789_DrawPixel(x, y, color);
+        }
+    }
+}
+
+/**
+ * @brief   Midpoint 画圆算法
+ * @param   x0     [入] 圆心列坐标
+ * @param   y0     [入] 圆心行坐标
+ * @param   r      [入] 半径（像素）
+ * @param   color  [入] 16-bit RGB565 颜色值
+ * @retval  无
+ * @note    利用八对称性一次计算 8 个点，经典整数算法
+ */
+void ST7789_DrawCircle(uint16_t x0, uint16_t y0, uint16_t r, uint16_t color)
+{
+    int16_t x = 0;
+    int16_t y = r;
+    int16_t d = 1 - r;
+
+    while (x <= y) {
+        ST7789_DrawPixel(x0 + x, y0 + y, color);
+        ST7789_DrawPixel(x0 + y, y0 + x, color);
+        ST7789_DrawPixel(x0 - x, y0 + y, color);
+        ST7789_DrawPixel(x0 - y, y0 + x, color);
+        ST7789_DrawPixel(x0 + x, y0 - y, color);
+        ST7789_DrawPixel(x0 + y, y0 - x, color);
+        ST7789_DrawPixel(x0 - x, y0 - y, color);
+        ST7789_DrawPixel(x0 - y, y0 - x, color);
+
+        if (d < 0) {
+            d += 2 * x + 3;
+        } else {
+            d += 2 * (x - y) + 5;
+            y--;
+        }
+        x++;
+    }
+}
+
+/**
+ * @brief  LCD 全面自检：纯色 → 条纹 → 边框 → 线条/圆 → 棋盘格
  * @param   无
  * @retval  无
  * @note    每个测试项停留约 800ms，最后停在品红色表示自检通过
@@ -210,18 +313,30 @@ void ST7789_Test(void)
     LCD_DELAY_MS(800);
 
     /* 4. 屏幕四边 2px 白框（验证边界寻址） */
-    ST7789_DrawRect(0, 0, sw, 2, COLOR_WHITE);          // 顶边
-    ST7789_DrawRect(0, sh - 2, sw, 2, COLOR_WHITE);     // 底边
-    ST7789_DrawRect(0, 0, 2, sh, COLOR_WHITE);          // 左边
-    ST7789_DrawRect(sw - 2, 0, 2, sh, COLOR_WHITE);     // 右边
+    ST7789_DrawRect(0, 0, sw, 2, COLOR_WHITE);
+    ST7789_DrawRect(0, sh - 2, sw, 2, COLOR_WHITE);
+    ST7789_DrawRect(0, 0, 2, sh, COLOR_WHITE);
+    ST7789_DrawRect(sw - 2, 0, 2, sh, COLOR_WHITE);
     LCD_DELAY_MS(800);
 
-    /* 5. 中心十字线（验证横纵中点） */
-    ST7789_DrawRect(0, sh / 2 - 1, sw, 2, COLOR_RED);   // 水平中线
-    ST7789_DrawRect(sw / 2 - 1, 0, 2, sh, COLOR_RED);   // 垂直中线
+    /* 5. 线条测试：对角线 × 2 + 中心十字（验证 DrawLine） */
+    ST7789_Fill(COLOR_BLACK);
+    ST7789_DrawLine(0, 0, sw - 1, sh - 1, COLOR_GREEN);       // 主对角线
+    ST7789_DrawLine(sw - 1, 0, 0, sh - 1, COLOR_CYAN);        // 副对角线
+    ST7789_DrawLine(sw / 2, 0, sw / 2, sh - 1, COLOR_RED);    // 垂直中线
+    ST7789_DrawLine(0, sh / 2, sw - 1, sh / 2, COLOR_RED);    // 水平中线
     LCD_DELAY_MS(800);
 
-    /* 6. 棋盘格 20×20（验证像素级寻址无错位） */
+    /* 6. 圆形测试：4 个同心圆（验证 DrawCircle） */
+    ST7789_Fill(COLOR_BLACK);
+    uint16_t cx = sw / 2, cy = sh / 2;
+    ST7789_DrawCircle(cx, cy, 20, COLOR_RED);
+    ST7789_DrawCircle(cx, cy, 40, COLOR_GREEN);
+    ST7789_DrawCircle(cx, cy, 60, COLOR_BLUE);
+    ST7789_DrawCircle(cx, cy, 80, COLOR_WHITE);
+    LCD_DELAY_MS(800);
+
+    /* 7. 棋盘格 20×20（验证像素级寻址无错位） */
     uint16_t cs = 20;
     for (uint16_t row = 0; row < sh; row += cs) {
         for (uint16_t col = 0; col < sw; col += cs) {
@@ -233,6 +348,6 @@ void ST7789_Test(void)
     }
     LCD_DELAY_MS(800);
 
-    /* 7. 结束画面：品红色 = 自检通过 */
+    /* 8. 结束画面：品红色 = 自检通过 */
     ST7789_Fill(COLOR_MAGENTA);
 }
