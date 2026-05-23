@@ -32,6 +32,57 @@ virtualFolder:
                 - path: ../Core/Src/stm32f4xx_hal_msp.c
                 - path: ../Core/Src/stm32f4xx_hal_timebase_tim.c
               folders: []
+    - name: App
+      files: []
+      folders:
+        - name: Data
+          files:
+            - path: ../App/Data/data_provider.c
+          folders: []
+        - name: Framework
+          files:
+            - path: ../App/Framework/page_manager.c
+            - path: ../App/Framework/gesture.c
+          folders: []
+        - name: Images
+          files: []
+          folders:
+            - name: Icons
+              files:
+                - path: ../App/Images/Icons/little_heart.c
+                - path: ../App/Images/Icons/spO2.c
+                - path: ../App/Images/Icons/little_footprints.c
+              folders: []
+            - name: Wallpapers
+              files:
+                - path: ../App/Images/Wallpapers/Pure_black_background.c
+              folders: []
+        - name: Pages
+          files:
+            - path: ../App/Pages/page_watchface.c
+            - path: ../App/Pages/page_heartrate.c
+            - path: ../App/Pages/page_spo2.c
+            - path: ../App/Pages/page_control_center.c
+            - path: ../App/Pages/page_notifications.c
+            - path: ../App/Pages/page_menu.c
+            - path: ../App/Pages/page_watchface_sel.c
+            - path: ../App/Pages/page_activity.c
+            - path: ../App/Pages/page_about.c
+            - path: ../App/Pages/page_alarm.c
+            - path: ../App/Pages/page_stopwatch.c
+            - path: ../App/Pages/page_timer.c
+            - path: ../App/Pages/page_calculator.c
+            - path: ../App/Pages/page_spo2_history.c
+            - path: ../App/Pages/page_workout_history.c
+            - path: ../App/Pages/page_bluetooth.c
+            - path: ../App/Pages/page_find_phone.c
+            - path: ../App/Pages/page_display.c
+            - path: ../App/Pages/pages_config.c
+          folders: []
+        - name: Root
+          files:
+            - path: ../App/app.c
+          folders: []
     - name: Drivers
       files: []
       folders:
@@ -85,6 +136,7 @@ virtualFolder:
             - path: ../Middlewares/LVGL/porting/lv_port_indev.h
             - path: ../Middlewares/LVGL/src/lv_init.c
             - path: ../Middlewares/LVGL/fonts/cascadia_mono_16_1bpp.c
+            - path: ../Middlewares/LVGL/fonts/montserrat_48_digits.c
           folders: []
     - name: BSP
       files:
@@ -107,6 +159,7 @@ targets:
         - USE_HAL_DRIVER
         - STM32F411xE
         - LV_CONF_INCLUDE_SIMPLE
+        - LV_LVGL_H_INCLUDE_SIMPLE
       incList:
         - ../Core/Inc
         - ../Drivers/STM32F4xx_HAL_Driver/Inc
@@ -122,6 +175,12 @@ targets:
         - ../Middlewares/LVGL/src
         - ../Middlewares/LVGL/porting
         - ../Middlewares/LVGL/fonts
+        - ../App
+        - ../App/Data
+        - ../App/Framework
+        - ../App/Pages
+        - ../App/Images/Icons
+        - ../App/Images/Wallpapers
         - .cmsis/include
         - ../MDK-ARM/RTE/_XiYang_Watch
       libList: []

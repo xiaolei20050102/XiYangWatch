@@ -28,6 +28,7 @@
 #include "lvgl.h"
 #include "lv_port_disp.h"
 #include "lv_port_indev.h"
+#include "app.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -155,81 +156,12 @@ void StartLvglTask(void *argument)
   lv_theme_t * th = lv_theme_mono_init(lv_display_get_default(), true, &cascadia_mono_16_1bpp);
   lv_display_set_theme(lv_display_get_default(), th);
 
-  lv_obj_t * scr = lv_screen_active();
-  lv_obj_set_style_pad_all(scr, 4, 0);
-
-  lv_obj_t * lb;
-  lv_obj_t * obj;
-
-  /* ── 1. 文字 ── */
-  lb = lv_label_create(scr);
-  lv_label_set_text(lb, "1.Text: ABCabc 12345 @XiYang");
-  lv_obj_set_pos(lb, 4, 4);
-
-  /* ── 2. 矩形 + 圆角矩形（用 btn widget，自带可见样式）── */
-  obj = lv_button_create(scr);
-  lv_obj_set_size(obj, 80, 30);
-  lv_obj_set_pos(obj, 4, 28);
-  lv_obj_set_style_radius(obj, 0, 0);
-
-  obj = lv_button_create(scr);
-  lv_obj_set_size(obj, 80, 30);
-  lv_obj_set_pos(obj, 92, 28);
-  lv_obj_set_style_radius(obj, 8, 0);
-
-  lb = lv_label_create(scr);
-  lv_label_set_text(lb, "2.Rects: sharp / rounded");
-  lv_obj_set_pos(lb, 4, 62);
-
-  /* ── 3. 边框矩形（默认底 + 粗白边框）── */
-  obj = lv_button_create(scr);
-  lv_obj_set_size(obj, 80, 30);
-  lv_obj_set_pos(obj, 4, 82);
-  lv_obj_set_style_border_width(obj, 3, 0);
-  lv_obj_set_style_radius(obj, 4, 0);
-
-  obj = lv_button_create(scr);
-  lv_obj_set_size(obj, 100, 30);
-  lv_obj_set_pos(obj, 92, 82);
-  lv_obj_set_style_border_width(obj, 3, 0);
-  lv_obj_set_style_radius(obj, 15, 0);
-
-  lb = lv_label_create(scr);
-  lv_label_set_text(lb, "3.Borders: 3px / capsule");
-  lv_obj_set_pos(lb, 4, 116);
-
-  /* ── 4. 圆 + 点 ── */
-  obj = lv_button_create(scr);
-  lv_obj_set_size(obj, 30, 30);
-  lv_obj_set_pos(obj, 4, 140);
-  lv_obj_set_style_radius(obj, LV_RADIUS_CIRCLE, 0);
-
-  obj = lv_button_create(scr);
-  lv_obj_set_size(obj, 8, 8);
-  lv_obj_set_pos(obj, 42, 151);
-  lv_obj_set_style_radius(obj, LV_RADIUS_CIRCLE, 0);
-
-  lb = lv_label_create(scr);
-  lv_label_set_text(lb, "4.Circle & dot");
-  lv_obj_set_pos(lb, 56, 145);
-
-  /* ── 5. 触摸按钮 ── */
-  obj = lv_button_create(scr);
-  lv_obj_set_size(obj, 200, 40);
-  lv_obj_set_pos(obj, 4, 180);
-  lv_obj_set_style_radius(obj, 6, 0);
-
-  lb = lv_label_create(obj);
-  lv_label_set_text(lb, "5.Touch me!");
-  lv_obj_center(lb);
-
-  lb = lv_label_create(scr);
-  lv_label_set_text(lb, "All OK? -> RTC + Watchface");
-  lv_obj_set_pos(lb, 4, 228);
+  app_init();
 
   for(;;)
   {
     lv_timer_handler();
+    app_loop();
     vTaskDelay(pdMS_TO_TICKS(5));
   }
 }

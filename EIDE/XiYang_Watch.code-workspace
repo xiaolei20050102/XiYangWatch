@@ -2,6 +2,13 @@
     "folders": [
         {
             "path": "."
+        },
+        {
+            "path": ".."
+        },
+        {
+            "name": "LVGL 仿真器",
+            "path": "../../XiYang_LVGL_Simulator"
         }
     ],
     "settings": {
