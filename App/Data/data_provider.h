@@ -19,6 +19,7 @@ int32_t watch_data_get_heart_rate(void);
 /* ── 血氧 ── */
 int32_t watch_data_get_spo2(void);
 void    watch_data_spo2_start(void);
+void    watch_data_spo2_abort(void);
 bool    watch_data_spo2_is_done(void);
 int32_t watch_data_spo2_history_count(void);
 bool    watch_data_spo2_history_get(int32_t idx, int32_t *spo2, watch_time_t *t);

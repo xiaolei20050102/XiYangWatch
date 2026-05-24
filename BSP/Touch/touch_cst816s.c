@@ -98,6 +98,10 @@ Touch_Gesture_t CST816_GetGesture(void)
 {
     uint8_t g = 0;
     TOUCH_I2C_READ(REG_GestureID, &g, 1);
+    if (g) {
+        uint8_t clr = 0;
+        TOUCH_I2C_WRITE(REG_GestureID, &clr, 1);
+    }
     return (Touch_Gesture_t)g;
 }
 

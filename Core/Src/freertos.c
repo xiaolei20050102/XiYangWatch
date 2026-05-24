@@ -29,6 +29,10 @@
 #include "lv_port_disp.h"
 #include "lv_port_indev.h"
 #include "app.h"
+#include "Framework/gesture.h"
+
+/* 前向声明：避开 touch_cst816s.h 与 gesture.h 的枚举名冲突 */
+extern uint8_t CST816_GetGesture(void);
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -162,6 +166,20 @@ void StartLvglTask(void *argument)
   {
     lv_timer_handler();
     app_loop();
+
+    /* 触摸手势 → 页面导航 */
+    uint8_t raw = CST816_GetGesture();
+    gesture_t g = GESTURE_NONE;
+    switch (raw) {
+        case 0x01: g = GESTURE_DOWN;  break;
+        case 0x02: g = GESTURE_UP;    break;
+        case 0x03: g = GESTURE_LEFT;  break;
+        case 0x04: g = GESTURE_RIGHT; break;
+        case 0x05: g = GESTURE_CLICK; break;
+        case 0x0C: g = GESTURE_LONGPRESS; break;
+    }
+    gesture_feed(g);
+
     vTaskDelay(pdMS_TO_TICKS(5));
   }
 }

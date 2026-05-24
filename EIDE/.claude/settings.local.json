@@ -13,13 +13,34 @@
       "Bash(ls -la /c/Users/ 2>/dev/null | head -30)",
       "Read(//c/Users//**)",
       "Bash(find /e/ -maxdepth 2 -type d -iname \"*ov*watch*\" -o -type d -iname \"*ovwatch*\" -o -type d -iname \"*ov_watch*\" 2>/dev/null | head -30)",
-      "Bash(find /e/ -maxdepth 4 -name \"*.ioc\" -path \"*ov*watch*\" -o -name \"*.ioc\" -path \"*ovwatch*\" -o -name \"*.ioc\" -path \"*ov_watch*\" 2>/dev/null | head -20)"
+      "Bash(find /e/ -maxdepth 4 -name \"*.ioc\" -path \"*ov*watch*\" -o -name \"*.ioc\" -path \"*ovwatch*\" -o -name \"*.ioc\" -path \"*ov_watch*\" 2>/dev/null | head -20)",
+      "Bash(sort -t/ -k1,1n -k2)",
+      "Bash(python3 gen_lvgl_yaml.py)",
+      "Bash(find /e -maxdepth 4 -name \"eide.yml\" -path \"*/OV*\")",
+      "Bash(find /e -maxdepth 4 -name \"eide.yml\" -path \"*Watch*\")",
+      "Bash(find /d -maxdepth 4 -name \"eide.yml\" -path \"*Watch*\")",
+      "Bash(powershell -Command \"Get-ChildItem -Path C:\\\\Windows\\\\Fonts -Filter 'consol*' | Select-Object Name, FullName\")",
+      "Bash(npx lv_font_conv --font \"C:/Windows/Fonts/CascadiaMono.ttf\" --format lvgl --bpp 1 --size 16 --range 0x20-0x7F -o \"e:/XiYangWatch/XiYang_Watch/Middlewares/LVGL/fonts/cascadia_mono_16.c\")",
+      "Bash(npx lv_font_conv --font \"C:/Windows/Fonts/CascadiaMono.ttf\" --format lvgl --bpp 2 --size 18 --range 0x20-0x7F -o \"e:/XiYangWatch/XiYang_Watch/Middlewares/LVGL/fonts/cascadia_mono_18.c\")",
+      "Bash(npx lv_font_conv --font \"C:/Windows/Fonts/CascadiaMono.ttf\" --format lvgl --bpp 2 --size 14 --range 0x20-0x7F -o \"e:/XiYangWatch/XiYang_Watch/Middlewares/LVGL/fonts/cascadia_mono_14.c\")",
+      "Bash(npx lv_font_conv --font \"C:/Windows/Fonts/CascadiaMono.ttf\" --format lvgl --bpp 2 --size 20 --range 0x20-0x7F -o \"e:/XiYangWatch/XiYang_Watch/Middlewares/LVGL/fonts/cascadia_mono_20.c\")",
+      "Bash(npx lv_font_conv --font \"C:/Windows/Fonts/CascadiaMono.ttf\" --format lvgl --bpp 4 --size 14 --range 0x20-0x7F -o \"e:/XiYangWatch/XiYang_Watch/Middlewares/LVGL/fonts/cascadia_mono_14_4bpp.c\")",
+      "Bash(npx lv_font_conv --font \"C:/Windows/Fonts/CascadiaMono.ttf\" --format lvgl --bpp 4 --size 18 --range 0x20-0x7F -o \"e:/XiYangWatch/XiYang_Watch/Middlewares/LVGL/fonts/cascadia_mono_18_4bpp.c\")",
+      "Bash(npx lv_font_conv --font \"C:/Windows/Fonts/CascadiaMono.ttf\" --format lvgl --bpp 1 --size 14 --range 0x20-0x7F -o \"e:/XiYangWatch/XiYang_Watch/Middlewares/LVGL/fonts/cascadia_mono_14_1bpp.c\")",
+      "Bash(npx lv_font_conv --font \"C:/Windows/Fonts/CascadiaMono.ttf\" --format lvgl --bpp 1 --size 18 --range 0x20-0x7F -o \"e:/XiYangWatch/XiYang_Watch/Middlewares/LVGL/fonts/cascadia_mono_18_1bpp.c\")",
+      "Bash(npx lv_font_conv --font \"C:/Windows/Fonts/CascadiaMono.ttf\" --format lvgl --bpp 1 --size 20 --range 0x20-0x7F -o \"e:/XiYangWatch/XiYang_Watch/Middlewares/LVGL/fonts/cascadia_mono_20_1bpp.c\")",
+      "Bash(npx lv_font_conv --font \"C:/Windows/Fonts/CascadiaMono.ttf\" --format lvgl --bpp 1 --size 16 --range 0x20-0x7F -o \"e:/XiYangWatch/XiYang_Watch/Middlewares/LVGL/fonts/cascadia_mono_16_1bpp.c\")",
+      "Bash(git config *)",
+      "Bash(mkdir -p \"E:/XiYangWatch/XiYang_LVGL_Simulator\")"
     ],
     "additionalDirectories": [
       "e:\\XiYangWatch\\XiYang_Watch\\BSP\\LCD",
       "e:\\XiYangWatch\\XiYang_Watch\\Core\\Src",
       "e:\\XiYangWatch\\XiYang_Watch\\BSP\\Touch",
-      "e:\\XiYangWatch\\XiYang_Watch\\Docs\\learning"
+      "e:\\XiYangWatch\\XiYang_Watch\\Docs\\learning",
+      "e:\\XiYangWatch\\XiYang_Watch\\Middlewares\\LVGL",
+      "C:\\Users\\12272\\.claude\\projects\\e--XiYangWatch-XiYang-Watch-EIDE\\memory",
+      "E:\\XiYangWatch"
     ]
   }
 }

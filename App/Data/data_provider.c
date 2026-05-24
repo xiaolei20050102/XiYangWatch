@@ -29,6 +29,7 @@
 #if USE_FAKE_DATA
     int32_t watch_data_get_spo2(void)       { return -1; }
     void    watch_data_spo2_start(void)      {}
+    void    watch_data_spo2_abort(void)      {}
     bool    watch_data_spo2_is_done(void)    { return false; }
     int32_t watch_data_spo2_history_count(void) { return 0; }
     bool    watch_data_spo2_history_get(int32_t idx, int32_t *spo2, watch_time_t *t) { return false; }
@@ -38,7 +39,12 @@
  *  活动
  * ================================================================ */
 #if USE_FAKE_DATA
-    int32_t watch_data_get_steps(void)        { return 8432; }
+    int32_t watch_data_get_steps(void)        {
+        static int32_t steps;
+        steps += 123;
+        if (steps > 10000) steps = 10000;
+        return steps;
+    }
     int32_t watch_data_get_calories(void)     { return 320; }
     int32_t watch_data_get_distance_m(void)   { return 5800; }
 #endif

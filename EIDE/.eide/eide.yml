@@ -52,6 +52,8 @@ virtualFolder:
                 - path: ../App/Images/Icons/little_heart.c
                 - path: ../App/Images/Icons/spO2.c
                 - path: ../App/Images/Icons/little_footprints.c
+                - path: ../App/Images/Icons/The_little_person_is_running.c
+                - path: ../App/Images/Icons/Love_icon22_20.c
               folders: []
             - name: Wallpapers
               files:
@@ -136,6 +138,7 @@ virtualFolder:
             - path: ../Middlewares/LVGL/porting/lv_port_indev.h
             - path: ../Middlewares/LVGL/src/lv_init.c
             - path: ../Middlewares/LVGL/fonts/cascadia_mono_16_1bpp.c
+            - path: ../Middlewares/LVGL/fonts/rubik_bold_100_digits.c
             - path: ../Middlewares/LVGL/fonts/montserrat_48_digits.c
           folders: []
     - name: BSP

@@ -1,5 +1,9 @@
 #include "gesture.h"
 #include "page_manager.h"
+#include "lvgl.h"
+
+static bool g_armed = true;
+static uint32_t g_last_gesture_tick;
 
 void gesture_init(void)
 {
@@ -8,7 +12,14 @@ void gesture_init(void)
 
 void gesture_feed(gesture_t g)
 {
-    if (g == GESTURE_NONE) return;
+    if (g == GESTURE_NONE) {
+        if (lv_tick_get() - g_last_gesture_tick > 500)
+            g_armed = true;
+        return;
+    }
+    if (!g_armed) return;
+    g_armed = false;
+    g_last_gesture_tick = lv_tick_get();
 
     page_state_t state = page_manager_get_state();
 
@@ -22,9 +33,26 @@ void gesture_feed(gesture_t g)
         else if (g == GESTURE_LONGPRESS) page_manager_push(PAGE_WATCHFACE_SEL);
         break;
 
-    case STATE_AT_SPOKE:
-        if (g != GESTURE_NONE) page_manager_go_home();
+    case STATE_AT_SPOKE: {
+        spoke_dir_t entry = page_manager_get_entry_dir();
+
+        /* 同方向 = 继续深入辐条链 */
+        int deeper = 0;
+        if (entry == SPOKE_LEFT  && g == GESTURE_LEFT)  deeper = 1;
+        if (entry == SPOKE_RIGHT && g == GESTURE_RIGHT) deeper = 1;
+        if (entry == SPOKE_UP    && g == GESTURE_UP)    deeper = 1;
+        if (entry == SPOKE_DOWN  && g == GESTURE_DOWN)  deeper = 1;
+        if (deeper) { page_manager_spoke_next(); break; }
+
+        /* 反方向 = 逐级回退 */
+        int back = 0;
+        if (entry == SPOKE_LEFT  && g == GESTURE_RIGHT) back = 1;
+        if (entry == SPOKE_RIGHT && g == GESTURE_LEFT)  back = 1;
+        if (entry == SPOKE_UP    && g == GESTURE_DOWN)  back = 1;
+        if (entry == SPOKE_DOWN  && g == GESTURE_UP)    back = 1;
+        if (back) page_manager_spoke_prev();
         break;
+    }
 
     case STATE_AT_OVERLAY:
         if (g == GESTURE_LEFT || g == GESTURE_RIGHT)
