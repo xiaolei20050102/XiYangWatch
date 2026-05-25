@@ -58,6 +58,9 @@ virtualFolder:
                 - path: ../App/Images/Icons/barometric_pressure.c
                 - path: ../App/Images/Icons/heart_rate_32.c
                 - path: ../App/Images/Icons/blood_oxygen_32.c
+                - path: ../App/Images/Icons/temperature_32.c
+                - path: ../App/Images/Icons/new_temperature_32.c
+                - path: ../App/Images/Icons/humidity_32.c
               folders: []
             - name: Wallpapers
               files:

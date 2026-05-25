@@ -8,7 +8,7 @@ static lv_obj_t *label_temp;
 static lv_obj_t *label_humi;
 static lv_timer_t *refresh_timer;
 
-extern const lv_image_dsc_t temperature_32;
+extern const lv_image_dsc_t new_temperature_32;
 extern const lv_image_dsc_t humidity_32;
 extern const lv_font_t montserrat_48_digits;
 
@@ -47,7 +47,7 @@ static lv_obj_t *create(lv_obj_t *parent)
     lv_obj_align(card_temp, LV_ALIGN_TOP_MID, 0, 15);
 
     lv_obj_t *temp_icon = lv_image_create(card_temp);
-    lv_image_set_src(temp_icon, &temperature_32);
+    lv_image_set_src(temp_icon, &new_temperature_32);
     lv_obj_align(temp_icon, LV_ALIGN_TOP_LEFT, 12, 12);
 
     lv_obj_t *temp_label = lv_label_create(card_temp);
