@@ -26,8 +26,8 @@ static void arc_anim_cb(void *var, int32_t v)
     lv_arc_set_value(meas_arc, v);
 }
 
-extern const lv_image_dsc_t Love_icon22_20;
-extern const lv_image_dsc_t spO2;
+extern const lv_image_dsc_t heart_rate_32;
+extern const lv_image_dsc_t blood_oxygen_32;
 extern const lv_font_t montserrat_48_digits;
 
 static void close_meas_popup(void)
@@ -174,12 +174,9 @@ static lv_obj_t *create(lv_obj_t *parent)
 
     /* ==================== 上半区：心率 ==================== */
 
-    /* 红心图标 — 30×29 略放大到 ~45×44 */
+    /* 心率图标 */
     lv_obj_t *heart = lv_image_create(root);
-    lv_image_set_src(heart, &Love_icon22_20);
-    lv_image_set_scale(heart, 384);
-    lv_obj_set_style_image_recolor(heart, lv_color_hex(0xFF3333), 0);
-    lv_obj_set_style_image_recolor_opa(heart, LV_OPA_COVER, 0);
+    lv_image_set_src(heart, &heart_rate_32);
     lv_obj_align(heart, LV_ALIGN_CENTER, -84, -46);
 
     /* 数字锚定中心，图标在数字左边 */
@@ -198,12 +195,9 @@ static lv_obj_t *create(lv_obj_t *parent)
 
     /* ==================== 下半区：血氧 ==================== */
 
-    /* SpO2 图标 — 1.5x 放大 (36×24) */
+    /* 血氧图标 */
     lv_obj_t *spo2_icon = lv_image_create(root);
-    lv_image_set_src(spo2_icon, &spO2);
-    lv_image_set_scale(spo2_icon, 384);
-    lv_obj_set_style_image_recolor(spo2_icon, lv_color_hex(0x3AFFB6), 0);
-    lv_obj_set_style_image_recolor_opa(spo2_icon, LV_OPA_COVER, 0);
+    lv_image_set_src(spo2_icon, &blood_oxygen_32);
     lv_obj_align(spo2_icon, LV_ALIGN_CENTER, -80, 54);
 
     /* 数字锚定中心 */

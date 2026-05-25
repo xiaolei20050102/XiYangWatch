@@ -54,6 +54,10 @@ virtualFolder:
                 - path: ../App/Images/Icons/little_footprints.c
                 - path: ../App/Images/Icons/The_little_person_is_running.c
                 - path: ../App/Images/Icons/Love_icon22_20.c
+                - path: ../App/Images/Icons/elevation.c
+                - path: ../App/Images/Icons/barometric_pressure.c
+                - path: ../App/Images/Icons/heart_rate_32.c
+                - path: ../App/Images/Icons/blood_oxygen_32.c
               folders: []
             - name: Wallpapers
               files:
@@ -80,6 +84,8 @@ virtualFolder:
             - path: ../App/Pages/page_find_phone.c
             - path: ../App/Pages/page_display.c
             - path: ../App/Pages/pages_config.c
+            - path: ../App/Pages/page_altimeter.c
+            - path: ../App/Pages/page_climate.c
           folders: []
         - name: Root
           files:

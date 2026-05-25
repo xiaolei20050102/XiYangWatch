@@ -68,8 +68,16 @@
 #if USE_FAKE_DATA
     int32_t watch_data_get_temperature(void)  { return 225; }
     int32_t watch_data_get_humidity(void)     { return 55; }
-    int32_t watch_data_get_pressure(void)     { return 1013; }
-    int32_t watch_data_get_altitude(void)     { return 156; }
+    int32_t watch_data_get_pressure(void)     {
+        /* 气压关键值: 870 ~ 1085 hPa，每2秒轮换 */
+        static const int32_t vals[] = { 1013, 870, 1085, 1003, 999, 1042 };
+        static int32_t t; return vals[(t++ / 2) % 6];
+    }
+    int32_t watch_data_get_altitude(void)     {
+        /* 海拔关键值: 不同位数长度，每2秒轮换 */
+        static const int32_t vals[] = { 156, 8, 8848, -430, 56, 1234, 0, 9000 };
+        static int32_t t; return vals[(t++ / 2) % 8];
+    }
 #endif
 
 /* ================================================================

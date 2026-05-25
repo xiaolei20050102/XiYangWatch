@@ -25,6 +25,8 @@ typedef enum {
     PAGE_BLUETOOTH,
     /* Phase 4 */
     PAGE_FIND_PHONE,
+    PAGE_ALTIMETER,
+    PAGE_CLIMATE,
     PAGE_COUNT
 } page_id_t;
 

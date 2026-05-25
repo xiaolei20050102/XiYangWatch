@@ -22,6 +22,8 @@ extern const page_t page_workout_history;
 extern const page_t page_bluetooth;
 /* Phase 4 */
 extern const page_t page_find_phone;
+extern const page_t page_altimeter;
+extern const page_t page_climate;
 
 const page_t *g_pages[PAGE_COUNT] = {
     [PAGE_WATCHFACE]       = &page_watchface,
@@ -42,6 +44,8 @@ const page_t *g_pages[PAGE_COUNT] = {
     [PAGE_WORKOUT_HISTORY] = &page_workout_history,
     [PAGE_BLUETOOTH]       = &page_bluetooth,
     [PAGE_FIND_PHONE]      = &page_find_phone,
+    [PAGE_ALTIMETER]       = &page_altimeter,
+    [PAGE_CLIMATE]         = &page_climate,
 };
 
 const page_t *pages_config_get(page_id_t id)
