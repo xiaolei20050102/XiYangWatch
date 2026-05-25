@@ -4,10 +4,16 @@
 
 static bool g_armed = true;
 static uint32_t g_last_gesture_tick;
+static gesture_intercept_cb_t g_intercept;
 
 void gesture_init(void)
 {
     /* 模拟器用键盘映射，STM32 用 CST816 手势 */
+}
+
+void gesture_set_intercept(gesture_intercept_cb_t cb)
+{
+    g_intercept = cb;
 }
 
 void gesture_feed(gesture_t g)
@@ -18,6 +24,14 @@ void gesture_feed(gesture_t g)
         return;
     }
     if (!g_armed) return;
+
+    /* 页面可注册拦截器，在测量等场景下吞掉手势 */
+    if (g_intercept && g_intercept(g)) {
+        g_armed = false;
+        g_last_gesture_tick = lv_tick_get();
+        return;
+    }
+
     g_armed = false;
     g_last_gesture_tick = lv_tick_get();
 

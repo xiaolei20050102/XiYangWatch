@@ -1,8 +1,13 @@
 #include "page.h"
 #include "../Data/data_provider.h"
+#include "../Framework/gesture.h"
 
 static lv_obj_t *root;
+static lv_obj_t *divider;
 static lv_obj_t *label_hr;
+static lv_obj_t *label_bpm;
+static lv_obj_t *heart_icon;
+static lv_obj_t *spo2_icon;
 static lv_obj_t *label_spo2_num;
 static lv_obj_t *label_spo2_pct;
 static lv_obj_t *btn_spo2;
@@ -13,247 +18,716 @@ static int32_t hr_value;
 static int32_t spo2_value = -1;
 static int32_t spo2_countdown;
 static int32_t spo2_measuring;
-
-/* 测量弹窗 */
-static lv_obj_t *meas_overlay;
-static lv_obj_t *meas_arc;
-static lv_obj_t *meas_countdown_label;
 static int32_t arc_display;
 
-static void arc_anim_cb(void *var, int32_t v)
-{
-    (void)var;
-    lv_arc_set_value(meas_arc, v);
-}
+/* ── 测量模式控件 ── */
+static lv_obj_t   *meas_bg;              /* 全屏纯黑背景, opa 255 */
+static lv_obj_t   *meas_hint;
+static lv_obj_t   *meas_arc;
+static lv_obj_t   *meas_countdown_label;
+static lv_obj_t   *meas_status;
+static lv_obj_t   *meas_result_num;
+static lv_obj_t   *meas_result_pct;
+static lv_timer_t *meas_timer;
+static lv_timer_t *result_timer;
+static bool        idle_animations_running;
 
-extern const lv_image_dsc_t heart_rate_32;
-extern const lv_image_dsc_t blood_oxygen_32;
+extern const lv_image_dsc_t heart_rate_48;
+extern const lv_image_dsc_t blood_oxygen_48;
 extern const lv_font_t montserrat_48_digits;
 
-static void close_meas_popup(void)
-{
-    if (meas_overlay) {
-        lv_obj_delete(meas_overlay);
-        meas_overlay = NULL;
-        meas_arc = NULL;
-        meas_countdown_label = NULL;
-    }
+/* ==================== 通用动画回调 ==================== */
+
+static void translate_x_cb(void *var, int32_t v) {
+	lv_obj_set_style_translate_x((lv_obj_t *)var, v, 0);
 }
+static void translate_y_cb(void *var, int32_t v) {
+	lv_obj_set_style_translate_y((lv_obj_t *)var, v, 0);
+}
+static void opa_cb(void *var, int32_t v) {
+	lv_obj_set_style_opa((lv_obj_t *)var, v, 0);
+}
+static void text_opa_cb(void *var, int32_t v) {
+	lv_obj_set_style_text_opa((lv_obj_t *)var, v, 0);
+}
+static void image_opa_cb(void *var, int32_t v) {
+	lv_obj_set_style_image_opa((lv_obj_t *)var, v, 0);
+}
+static void border_opa_cb(void *var, int32_t v) {
+	lv_obj_set_style_border_opa((lv_obj_t *)var, v, 0);
+}
+static void width_cb(void *var, int32_t v) {
+	lv_obj_set_style_width((lv_obj_t *)var, v, 0);
+}
+static void arc_anim_cb(void *var, int32_t v) {
+	(void)var;
+	lv_arc_set_value(meas_arc, v);
+}
+static void arc_indicator_opa_cb(void *var, int32_t v) {
+	lv_obj_set_style_arc_opa((lv_obj_t *)var, v, LV_PART_INDICATOR);
+}
+static void arc_rotation_cb(void *var, int32_t v) {
+	(void)var;
+	lv_arc_set_rotation(meas_arc, v);
+}
+static void spo2_roll_cb(void *var, int32_t v) {
+	(void)var;
+	lv_label_set_text_fmt(label_spo2_num, "%d", v);
+	lv_obj_align_to(label_spo2_pct, label_spo2_num, LV_ALIGN_OUT_RIGHT_TOP, 6, 8);
+}
+
+/* ==================== 辅助函数 ==================== */
+
+static void set_spo2_placeholder(void)
+{
+	lv_obj_set_style_text_font(label_spo2_num, &lv_font_montserrat_20, 0);
+	lv_label_set_text(label_spo2_num, "--");
+	lv_obj_set_style_text_color(label_spo2_num, lv_color_hex(0x555555), 0);
+	lv_obj_set_style_text_font(label_spo2_pct, &lv_font_montserrat_16, 0);
+	lv_label_set_text(label_spo2_pct, "%");
+	lv_obj_set_style_text_color(label_spo2_pct, lv_color_hex(0x555555), 0);
+	lv_obj_align_to(label_spo2_pct, label_spo2_num, LV_ALIGN_OUT_RIGHT_TOP, 2, 2);
+}
+
+static void set_spo2_value(int32_t val)
+{
+	lv_obj_set_style_text_font(label_spo2_num, &montserrat_48_digits, 0);
+	lv_label_set_text_fmt(label_spo2_num, "%d", val);
+	lv_obj_set_style_text_color(label_spo2_num, lv_color_white(), 0);
+	lv_obj_set_style_text_font(label_spo2_pct, &lv_font_montserrat_16, 0);
+	lv_label_set_text(label_spo2_pct, "%");
+	lv_obj_set_style_text_color(label_spo2_pct, lv_color_hex(0x808080), 0);
+	lv_obj_align_to(label_spo2_pct, label_spo2_num, LV_ALIGN_OUT_RIGHT_TOP, 6, 8);
+}
+
+static void animate_spo2_to(int32_t target, int32_t delay_ms)
+{
+	if (target <= 0) {
+		set_spo2_placeholder();
+		return;
+	}
+	/* 先展示 "0"，再滚动到 target */
+	set_spo2_value(0);
+	lv_anim_t a;
+	lv_anim_init(&a);
+	lv_anim_set_var(&a, &arc_display);
+	lv_anim_set_values(&a, 0, target);
+	lv_anim_set_exec_cb(&a, spo2_roll_cb);
+	lv_anim_set_duration(&a, 500 + (target * 400) / 100);
+	lv_anim_set_delay(&a, delay_ms);
+	lv_anim_set_path_cb(&a, lv_anim_path_ease_out);
+	lv_anim_start(&a);
+}
+
+static void exit_meas_mode(void)
+{
+	gesture_set_intercept(NULL);
+	lv_anim_delete(NULL, arc_anim_cb);
+	lv_anim_delete(NULL, arc_indicator_opa_cb);
+	lv_anim_delete(NULL, arc_rotation_cb);
+	if (meas_bg) { lv_obj_delete(meas_bg); meas_bg = NULL; }
+	if (result_timer) { lv_timer_delete(result_timer); result_timer = NULL; }
+	meas_hint = NULL; meas_arc = NULL; meas_countdown_label = NULL;
+	meas_status = NULL; meas_result_num = NULL; meas_result_pct = NULL;
+	if (meas_timer) { lv_timer_delete(meas_timer); meas_timer = NULL; }
+}
+
+/* ==================== 停止 / 重启 idle 动画 ==================== */
+
+static void stop_idle_animations(void)
+{
+	if (!idle_animations_running) return;
+	lv_anim_delete(NULL, image_opa_cb);   /* heart_icon breathing */
+	lv_anim_delete(NULL, text_opa_cb);    /* label_hr pulse */
+	lv_anim_delete(NULL, border_opa_cb);  /* btn_spo2 border */
+	idle_animations_running = false;
+}
+
+static void start_idle_animations(void)
+{
+	if (idle_animations_running) return;
+	lv_anim_t a;
+
+	lv_anim_init(&a);
+	lv_anim_set_var(&a, heart_icon);
+	lv_anim_set_values(&a, 100, 255);
+	lv_anim_set_exec_cb(&a, image_opa_cb);
+	lv_anim_set_duration(&a, 1000);
+	lv_anim_set_playback_duration(&a, 1000);
+	lv_anim_set_repeat_count(&a, LV_ANIM_REPEAT_INFINITE);
+	lv_anim_start(&a);
+
+	lv_anim_init(&a);
+	lv_anim_set_var(&a, label_hr);
+	lv_anim_set_values(&a, 220, 255);
+	lv_anim_set_exec_cb(&a, text_opa_cb);
+	lv_anim_set_duration(&a, 900);
+	lv_anim_set_playback_duration(&a, 900);
+	lv_anim_set_repeat_count(&a, LV_ANIM_REPEAT_INFINITE);
+	lv_anim_start(&a);
+
+	lv_anim_init(&a);
+	lv_anim_set_var(&a, btn_spo2);
+	lv_anim_set_values(&a, 180, 220);
+	lv_anim_set_exec_cb(&a, border_opa_cb);
+	lv_anim_set_duration(&a, 1500);
+	lv_anim_set_playback_duration(&a, 1500);
+	lv_anim_set_repeat_count(&a, LV_ANIM_REPEAT_INFINITE);
+	lv_anim_start(&a);
+
+	idle_animations_running = true;
+}
+
+static void on_entry_complete(lv_anim_t *a)
+{
+	(void)a;
+	start_idle_animations();
+}
+
+/* ==================== 仪表盘淡入/淡出 ==================== */
+
+static void dashboard_set_opa(int32_t target, int32_t duration, lv_anim_completed_cb_t cb)
+{
+	lv_obj_t *dash[] = {
+		heart_icon, label_hr, label_bpm, divider,
+		spo2_icon, label_spo2_num, label_spo2_pct, btn_spo2
+	};
+	lv_anim_t a;
+	for (int i = 0; i < 8; i++) {
+		lv_anim_init(&a);
+		lv_anim_set_var(&a, dash[i]);
+		lv_anim_set_values(&a, target == 0 ? 255 : 0, target);
+		lv_anim_set_exec_cb(&a, opa_cb);
+		lv_anim_set_duration(&a, duration);
+		lv_anim_set_path_cb(&a, lv_anim_path_ease_out);
+		/* 仅最后一个元素触发回调, 防止重复执行 */
+		lv_anim_set_completed_cb(&a, (i == 7) ? cb : NULL);
+		lv_anim_start(&a);
+	}
+}
+
+/* ==================== 测量模式 ==================== */
+
+static void start_countdown_pulse(void)
+{
+	lv_anim_t a;
+	lv_anim_init(&a);
+	lv_anim_set_var(&a, meas_countdown_label);
+	lv_anim_set_values(&a, 100, 255);
+	lv_anim_set_exec_cb(&a, text_opa_cb);
+	lv_anim_set_duration(&a, 200);
+	lv_anim_set_path_cb(&a, lv_anim_path_ease_out);
+	lv_anim_start(&a);
+}
+
+/* ── 测量完成 → 显示结果 → 恢复仪表盘 ── */
+
+static void restore_dashboard_cb(lv_anim_t *a)
+{
+	(void)a;
+	exit_meas_mode();
+	lv_obj_clear_state(btn_spo2, LV_STATE_DISABLED);
+	lv_label_set_text(label_btn, "MEASURE");
+	animate_spo2_to(spo2_value, 150);
+	start_idle_animations();
+}
+
+static void result_fade_out(lv_timer_t *t)
+{
+	result_timer = NULL;
+	if (!meas_bg) return;
+
+	/* 测量背景 + 结果淡出 */
+	lv_anim_t a;
+	lv_anim_init(&a);
+	lv_anim_set_var(&a, meas_bg);
+	lv_anim_set_values(&a, 255, 0);
+	lv_anim_set_exec_cb(&a, opa_cb);
+	lv_anim_set_duration(&a, 450);
+	lv_anim_set_path_cb(&a, lv_anim_path_ease_out);
+	lv_anim_set_completed_cb(&a, restore_dashboard_cb);
+	lv_anim_start(&a);
+
+	/* 仪表盘同步淡入 */
+	dashboard_set_opa(255, 380, NULL);
+}
+
+static void show_result(void)
+{
+	/* 先停掉 hint 呼吸 + arc 指示器脉冲，避免影响后续操作 */
+	lv_anim_delete(NULL, text_opa_cb);
+	lv_anim_delete(NULL, arc_indicator_opa_cb);
+
+	/* 倒计时淡出 — 用 opa_cb 而非 text_opa_cb */
+	lv_anim_t a;
+	lv_anim_init(&a);
+	lv_anim_set_var(&a, meas_countdown_label);
+	lv_anim_set_values(&a, 255, 0);
+	lv_anim_set_exec_cb(&a, opa_cb);
+	lv_anim_set_duration(&a, 200);
+	lv_anim_start(&a);
+
+	/* hint 淡出 */
+	lv_anim_set_var(&a, meas_hint);
+	lv_anim_set_values(&a, 255, 0);
+	lv_anim_set_exec_cb(&a, opa_cb);
+	lv_anim_set_duration(&a, 200);
+	lv_anim_start(&a);
+
+	/* "98" 从下方上浮淡入 (y:+8 → 0) */
+	meas_result_num = lv_label_create(meas_bg);
+	lv_label_set_text(meas_result_num, "98");
+	lv_obj_set_style_text_font(meas_result_num, &montserrat_48_digits, 0);
+	lv_obj_set_style_text_color(meas_result_num, lv_color_white(), 0);
+	lv_obj_set_style_text_opa(meas_result_num, 0, 0);
+	lv_obj_set_style_translate_y(meas_result_num, 8, 0);
+	lv_obj_align(meas_result_num, LV_ALIGN_CENTER, -10, -10);
+
+	lv_anim_set_var(&a, meas_result_num);
+	lv_anim_set_values(&a, 8, 0);
+	lv_anim_set_exec_cb(&a, translate_y_cb);
+	lv_anim_set_duration(&a, 450);
+	lv_anim_set_path_cb(&a, lv_anim_path_ease_out);
+	lv_anim_start(&a);
+
+	lv_anim_set_values(&a, 0, 255);
+	lv_anim_set_exec_cb(&a, text_opa_cb);
+	lv_anim_set_duration(&a, 400);
+	lv_anim_start(&a);
+
+	/* "%" 跟随 */
+	meas_result_pct = lv_label_create(meas_bg);
+	lv_label_set_text(meas_result_pct, "%");
+	lv_obj_set_style_text_font(meas_result_pct, &lv_font_montserrat_20, 0);
+	lv_obj_set_style_text_color(meas_result_pct, lv_color_hex(0x808080), 0);
+	lv_obj_set_style_text_opa(meas_result_pct, 0, 0);
+	lv_obj_align_to(meas_result_pct, meas_result_num, LV_ALIGN_OUT_RIGHT_TOP, 4, 6);
+
+	lv_anim_set_var(&a, meas_result_pct);
+	lv_anim_set_values(&a, 0, 255);
+	lv_anim_set_exec_cb(&a, text_opa_cb);
+	lv_anim_set_duration(&a, 400);
+	lv_anim_set_delay(&a, 140);
+	lv_anim_start(&a);
+
+	/* arc → 雷达旋转: 短弧段持续旋转 */
+	lv_arc_set_value(meas_arc, 55);
+	lv_obj_set_style_arc_color(meas_arc, lv_color_hex(0x3AFFB6), LV_PART_INDICATOR);
+	lv_obj_set_style_arc_opa(meas_arc, LV_OPA_COVER, LV_PART_INDICATOR);
+
+	lv_anim_t a_rot;
+	lv_anim_init(&a_rot);
+	lv_anim_set_var(&a_rot, &arc_display);
+	lv_anim_set_values(&a_rot, 270, 630);
+	lv_anim_set_exec_cb(&a_rot, arc_rotation_cb);
+	lv_anim_set_duration(&a_rot, 500);
+	lv_anim_set_repeat_count(&a_rot, LV_ANIM_REPEAT_INFINITE);
+	lv_anim_set_path_cb(&a_rot, lv_anim_path_linear);
+	lv_anim_start(&a_rot);
+
+	/* 状态文字更新 */
+	lv_label_set_text(meas_status, "Measurement complete");
+
+	/* 2s 后退出 */
+	result_timer = lv_timer_create(result_fade_out, 1000, NULL);
+	lv_timer_set_repeat_count(result_timer, 1);
+}
+
+/* ── 倒计时 tick ── */
+
+static void on_meas_tick(lv_timer_t *t)
+{
+	if (spo2_countdown > 1) {
+		lv_label_set_text_fmt(meas_countdown_label, "%d", spo2_countdown);
+		start_countdown_pulse();
+		spo2_countdown--;
+	} else if (spo2_countdown == 1) {
+		lv_label_set_text(meas_countdown_label, "1");
+		start_countdown_pulse();
+		spo2_countdown--;
+
+		spo2_value = 98;
+		spo2_measuring = 0;
+
+		lv_timer_delete(meas_timer);
+		meas_timer = NULL;
+
+		lv_timer_t *delay = lv_timer_create((lv_timer_cb_t)show_result, 200, NULL);
+		lv_timer_set_repeat_count(delay, 1);
+	}
+}
+
+/* ── 仪表盘淡出完成后进入测量 ── */
+
+static void on_dash_faded(lv_anim_t *a)
+{
+	(void)a;
+
+	/* 全屏纯黑背景: opa 255, 完全不透 */
+	meas_bg = lv_obj_create(root);
+	lv_obj_set_size(meas_bg, 240, 280);
+	lv_obj_set_style_bg_color(meas_bg, lv_color_black(), 0);
+	lv_obj_set_style_bg_opa(meas_bg, 0, 0);
+	lv_obj_set_style_border_width(meas_bg, 0, 0);
+	lv_obj_set_style_pad_all(meas_bg, 0, 0);
+	lv_obj_remove_flag(meas_bg, LV_OBJ_FLAG_SCROLLABLE);
+	lv_obj_align(meas_bg, LV_ALIGN_CENTER, 0, 0);
+
+	lv_anim_t a2;
+	lv_anim_init(&a2);
+	lv_anim_set_var(&a2, meas_bg);
+	lv_anim_set_values(&a2, 0, 255);
+	lv_anim_set_exec_cb(&a2, opa_cb);
+	lv_anim_set_duration(&a2, 250);
+	lv_anim_set_path_cb(&a2, lv_anim_path_ease_out);
+	lv_anim_start(&a2);
+
+	/* -------- 测量元素 -------- */
+
+	/* "Keep still..." Y≈40 */
+	meas_hint = lv_label_create(meas_bg);
+	lv_label_set_text(meas_hint, "Keep still...");
+	lv_obj_set_style_text_font(meas_hint, &lv_font_montserrat_16, 0);
+	lv_obj_set_style_text_color(meas_hint, lv_color_hex(0xA8A8A8), 0);
+	lv_obj_align(meas_hint, LV_ALIGN_CENTER, 0, -98);
+
+	/* hint 呼吸 */
+	lv_anim_set_var(&a2, meas_hint);
+	lv_anim_set_values(&a2, 140, 220);
+	lv_anim_set_exec_cb(&a2, text_opa_cb);
+	lv_anim_set_duration(&a2, 1500);
+	lv_anim_set_playback_duration(&a2, 1500);
+	lv_anim_set_repeat_count(&a2, LV_ANIM_REPEAT_INFINITE);
+	lv_anim_start(&a2);
+
+	/* 扫描弧 108×108 */
+	meas_arc = lv_arc_create(meas_bg);
+	lv_obj_set_size(meas_arc, 108, 108);
+	lv_obj_align(meas_arc, LV_ALIGN_CENTER, 0, -10);
+	lv_arc_set_mode(meas_arc, LV_ARC_MODE_NORMAL);
+	lv_arc_set_range(meas_arc, 0, 300);
+	lv_arc_set_value(meas_arc, 0);
+	lv_arc_set_bg_angles(meas_arc, 0, 360);
+	lv_arc_set_rotation(meas_arc, 270);
+	lv_obj_remove_flag(meas_arc, LV_OBJ_FLAG_CLICKABLE);
+	lv_obj_set_style_arc_width(meas_arc, 4, LV_PART_MAIN);
+	lv_obj_set_style_arc_color(meas_arc, lv_color_hex(0x2A2A2A), LV_PART_MAIN);
+	lv_obj_set_style_arc_opa(meas_arc, LV_OPA_COVER, LV_PART_MAIN);
+	lv_obj_set_style_arc_width(meas_arc, 5, LV_PART_INDICATOR);
+	lv_obj_set_style_arc_color(meas_arc, lv_color_hex(0x3AFFB6), LV_PART_INDICATOR);
+	lv_obj_set_style_arc_opa(meas_arc, LV_OPA_COVER, LV_PART_INDICATOR);
+	lv_obj_set_style_arc_rounded(meas_arc, true, LV_PART_INDICATOR);
+	lv_obj_remove_style(meas_arc, NULL, LV_PART_KNOB);
+	lv_obj_set_style_bg_opa(meas_arc, LV_OPA_TRANSP, 0);
+	lv_obj_set_style_border_width(meas_arc, 0, 0);
+	lv_obj_set_style_pad_all(meas_arc, 0, 0);
+	lv_obj_set_style_shadow_width(meas_arc, 0, 0);
+
+	/* arc sweep: 0 → 300, ease_in_out 呼吸式, 2800ms */
+	lv_anim_set_var(&a2, &arc_display);
+	lv_anim_set_values(&a2, 0, 300);
+	lv_anim_set_exec_cb(&a2, arc_anim_cb);
+	lv_anim_set_duration(&a2, 2800);
+	lv_anim_set_delay(&a2, 100);
+	lv_anim_set_path_cb(&a2, lv_anim_path_ease_in_out);
+	lv_anim_start(&a2);
+
+	/* 指示器 opa 呼吸脉冲: 150 → 255 → 150, 1.2s 周期 */
+	lv_anim_set_var(&a2, meas_arc);
+	lv_anim_set_values(&a2, 200, 255);
+	lv_anim_set_exec_cb(&a2, arc_indicator_opa_cb);
+	lv_anim_set_duration(&a2, 600);
+	lv_anim_set_playback_duration(&a2, 600);
+	lv_anim_set_repeat_count(&a2, LV_ANIM_REPEAT_INFINITE);
+	lv_anim_start(&a2);
+
+	/* 倒计时数字: 锚定 arc 中心 */
+	meas_countdown_label = lv_label_create(meas_bg);
+	lv_label_set_text(meas_countdown_label, "3");
+	lv_obj_set_style_text_font(meas_countdown_label, &montserrat_48_digits, 0);
+	lv_obj_set_style_text_color(meas_countdown_label, lv_color_white(), 0);
+	lv_obj_align(meas_countdown_label, LV_ALIGN_CENTER, 0, -10);
+	start_countdown_pulse();
+
+	/* "Scanning..." */
+	meas_status = lv_label_create(meas_bg);
+	lv_label_set_text(meas_status, "Scanning...");
+	lv_obj_set_style_text_font(meas_status, &lv_font_montserrat_14, 0);
+	lv_obj_set_style_text_color(meas_status, lv_color_hex(0x666666), 0);
+	lv_obj_align(meas_status, LV_ALIGN_CENTER, 0, 60);
+}
+
+static bool meas_gesture_intercept(gesture_t g)
+{
+	if (g == GESTURE_NONE) return false;
+
+	if (meas_timer) { lv_timer_delete(meas_timer); meas_timer = NULL; }
+	if (result_timer) { lv_timer_delete(result_timer); result_timer = NULL; }
+	spo2_countdown = 0;
+	spo2_measuring = 0;
+	watch_data_spo2_abort();
+
+	lv_anim_delete(NULL, text_opa_cb);
+	lv_anim_delete(NULL, arc_indicator_opa_cb);
+	lv_anim_delete(NULL, opa_cb);
+
+	exit_meas_mode();
+
+	dashboard_set_opa(255, 250, NULL);
+	start_idle_animations();
+
+	if (spo2_value > 0) {
+		set_spo2_value(spo2_value);
+	} else {
+		set_spo2_placeholder();
+	}
+
+	lv_obj_clear_state(btn_spo2, LV_STATE_DISABLED);
+	lv_label_set_text(label_btn, "MEASURE");
+
+	gesture_set_intercept(NULL);
+	return true;
+}
+
+static void enter_meas_mode(void)
+{
+	stop_idle_animations();
+
+	gesture_set_intercept(meas_gesture_intercept);
+
+	/* 仪表盘淡出 (300ms), 完成后触发 on_dash_faded */
+	dashboard_set_opa(0, 300, on_dash_faded);
+}
+
+/* ==================== 按钮点击 → 进入测量 ==================== */
 
 static void on_spo2_click(lv_event_t *e)
 {
-    if (spo2_measuring) return;
+	if (spo2_measuring) return;
 
-    spo2_measuring = 1;
-    spo2_countdown = 3;
-    arc_display = 0;
+	spo2_measuring = 1;
+	spo2_countdown = 3;
+	spo2_value = -1;
+	arc_display = 0;
 
-    watch_data_spo2_start();
+	watch_data_spo2_start();
 
-    /* 隐藏数值区域 */
-    lv_obj_set_style_text_font(label_spo2_num, &lv_font_montserrat_16, 0);
-    lv_label_set_text(label_spo2_num, "");
-    lv_label_set_text(label_spo2_pct, "");
-    lv_obj_add_state(btn_spo2, LV_STATE_DISABLED);
-    lv_label_set_text(label_btn, "MEASURE");
+	lv_obj_add_state(btn_spo2, LV_STATE_DISABLED);
+	set_spo2_placeholder();
 
-    /* 全屏半透明遮罩 */
-    meas_overlay = lv_obj_create(root);
-    lv_obj_set_size(meas_overlay, 240, 280);
-    lv_obj_set_style_bg_color(meas_overlay, lv_color_black(), 0);
-    lv_obj_set_style_bg_opa(meas_overlay, LV_OPA_60, 0);
-    lv_obj_set_style_border_width(meas_overlay, 0, 0);
-    lv_obj_set_style_pad_all(meas_overlay, 0, 0);
-    lv_obj_remove_flag(meas_overlay, LV_OBJ_FLAG_SCROLLABLE);
-    lv_obj_align(meas_overlay, LV_ALIGN_CENTER, 0, 0);
-
-    /* 弹窗卡片 */
-    lv_obj_t *card = lv_obj_create(meas_overlay);
-    lv_obj_set_size(card, 180, 120);
-    lv_obj_set_style_bg_color(card, lv_color_hex(0x3A3A3C), 0);
-    lv_obj_set_style_bg_opa(card, LV_OPA_COVER, 0);
-    lv_obj_set_style_border_width(card, 0, 0);
-    lv_obj_set_style_radius(card, 24, 0);
-    lv_obj_set_style_pad_all(card, 0, 0);
-    lv_obj_center(card);
-
-    /* 提示文字 */
-    lv_obj_t *hint = lv_label_create(card);
-    lv_label_set_text(hint, "Keep still...");
-    lv_obj_set_style_text_font(hint, &lv_font_montserrat_16, 0);
-    lv_obj_set_style_text_color(hint, lv_color_hex(0xCCCCCC), 0);
-    lv_obj_align(hint, LV_ALIGN_TOP_MID, 0, 2);
-
-    /* 圆弧进度 */
-    meas_arc = lv_arc_create(card);
-    lv_obj_set_size(meas_arc, 72, 72);
-    lv_obj_align(meas_arc, LV_ALIGN_CENTER, 0, 4);
-    lv_arc_set_mode(meas_arc, LV_ARC_MODE_NORMAL);
-    lv_arc_set_range(meas_arc, 0, 300);
-    lv_arc_set_value(meas_arc, 0);
-    lv_arc_set_bg_angles(meas_arc, 0, 360);
-    lv_arc_set_rotation(meas_arc, 270);
-    lv_obj_remove_flag(meas_arc, LV_OBJ_FLAG_CLICKABLE);
-    lv_obj_set_style_arc_width(meas_arc, 4, LV_PART_MAIN);
-    lv_obj_set_style_arc_color(meas_arc, lv_color_hex(0x333333), LV_PART_MAIN);
-    lv_obj_set_style_arc_opa(meas_arc, LV_OPA_COVER, LV_PART_MAIN);
-    lv_obj_set_style_arc_width(meas_arc, 6, LV_PART_INDICATOR);
-    lv_obj_set_style_arc_color(meas_arc, lv_color_hex(0x3AFFB6), LV_PART_INDICATOR);
-    lv_obj_set_style_arc_opa(meas_arc, LV_OPA_COVER, LV_PART_INDICATOR);
-    lv_obj_remove_style(meas_arc, NULL, LV_PART_KNOB);
-    lv_obj_set_style_bg_opa(meas_arc, LV_OPA_TRANSP, 0);
-    lv_obj_set_style_border_width(meas_arc, 0, 0);
-    lv_obj_set_style_pad_all(meas_arc, 0, 0);
-    lv_obj_set_style_shadow_width(meas_arc, 0, 0);
-
-    /* 倒计时数字 — 叠在圆弧中心 */
-    meas_countdown_label = lv_label_create(card);
-    lv_label_set_text(meas_countdown_label, "3");
-    lv_obj_set_style_text_font(meas_countdown_label, &montserrat_48_digits, 0);
-    lv_obj_set_style_text_color(meas_countdown_label, lv_color_white(), 0);
-    lv_obj_center(meas_countdown_label);
+	enter_meas_mode();
+	meas_timer = lv_timer_create(on_meas_tick, 1000, NULL);
 }
+
+/* ==================== 定时刷新 ==================== */
 
 static void on_refresh(lv_timer_t *timer)
 {
-    static int32_t tick;
-    tick++;
-
-    hr_value = 75 + ((tick % 7) - 3);
-    lv_label_set_text_fmt(label_hr, "%d", hr_value);
-
-    if (spo2_measuring) {
-        if (spo2_countdown > 0) {
-            lv_label_set_text_fmt(meas_countdown_label, "%d", spo2_countdown);
-            spo2_countdown--;
-            {
-                int32_t target = (3 - spo2_countdown) * 100;
-                int32_t from = target > 0 ? target - 100 : 0;
-                lv_anim_t a;
-                lv_anim_init(&a);
-                lv_anim_set_var(&a, &arc_display);
-                lv_anim_set_values(&a, from, target);
-                lv_anim_set_exec_cb(&a, arc_anim_cb);
-                lv_anim_set_duration(&a, 950);
-                lv_anim_set_path_cb(&a, lv_anim_path_linear);
-                lv_anim_start(&a);
-            }
-        } else {
-            /* 上一 tick 已显示 "1"，本 tick 完成 */
-            close_meas_popup();
-            spo2_measuring = 0;
-            spo2_value = 98;
-
-            lv_obj_set_style_text_font(label_spo2_num, &montserrat_48_digits, 0);
-            lv_label_set_text_fmt(label_spo2_num, "%d", spo2_value);
-            lv_obj_set_style_text_font(label_spo2_pct, &lv_font_montserrat_16, 0);
-            lv_label_set_text(label_spo2_pct, "%");
-            lv_obj_align_to(label_spo2_pct, label_spo2_num, LV_ALIGN_OUT_RIGHT_TOP, 6, 8);
-            lv_obj_clear_state(btn_spo2, LV_STATE_DISABLED);
-        }
-    }
+	static int32_t tick;
+	tick++;
+	hr_value = 75 + ((tick % 7) - 3);
+	lv_label_set_text_fmt(label_hr, "%d", hr_value);
 }
+
+/* ==================== 页面创建 ==================== */
 
 static lv_obj_t *create(lv_obj_t *parent)
 {
-    root = lv_obj_create(parent);
-    lv_obj_set_size(root, 240, 280);
-    lv_obj_set_style_pad_all(root, 0, 0);
-    lv_obj_set_style_border_width(root, 0, 0);
-    lv_obj_set_style_bg_color(root, lv_color_black(), 0);
-    lv_obj_set_style_bg_opa(root, LV_OPA_COVER, 0);
+	root = lv_obj_create(parent);
+	lv_obj_set_size(root, 240, 280);
+	lv_obj_set_style_pad_all(root, 0, 0);
+	lv_obj_set_style_border_width(root, 0, 0);
+	lv_obj_set_style_bg_color(root, lv_color_black(), 0);
+	lv_obj_set_style_bg_opa(root, LV_OPA_COVER, 0);
 
-    /* ==================== 中心分割线 ==================== */
-    lv_obj_t *divider = lv_obj_create(root);
-    lv_obj_set_size(divider, 200, 1);
-    lv_obj_set_style_bg_color(divider, lv_color_hex(0x333333), 0);
-    lv_obj_set_style_bg_opa(divider, LV_OPA_COVER, 0);
-    lv_obj_set_style_border_width(divider, 0, 0);
-    lv_obj_set_style_pad_all(divider, 0, 0);
-    lv_obj_align(divider, LV_ALIGN_CENTER, 0, 0);
+	/* ═══════════════ 分割线 ═══════════════ */
+	divider = lv_obj_create(root);
+	lv_obj_set_size(divider, 0, 1);
+	lv_obj_set_style_bg_color(divider, lv_color_hex(0x2A2A2A), 0);
+	lv_obj_set_style_bg_opa(divider, LV_OPA_30, 0);
+	lv_obj_set_style_border_width(divider, 0, 0);
+	lv_obj_set_style_pad_all(divider, 0, 0);
+	lv_obj_align(divider, LV_ALIGN_CENTER, 0, 0);
 
-    /* ==================== 上半区：心率 ==================== */
+	/* ═══════════════ 上半区: 心率 ═══════════════ */
 
-    /* 心率图标 */
-    lv_obj_t *heart = lv_image_create(root);
-    lv_image_set_src(heart, &heart_rate_32);
-    lv_obj_align(heart, LV_ALIGN_CENTER, -84, -46);
+	heart_icon = lv_image_create(root);
+	lv_image_set_src(heart_icon, &heart_rate_48);
+	lv_obj_set_style_image_opa(heart_icon, 0, 0);
+	lv_obj_set_style_translate_x(heart_icon, -12, 0);
+	lv_obj_align(heart_icon, LV_ALIGN_CENTER, -84, -51);
 
-    /* 数字锚定中心，图标在数字左边 */
-    label_hr = lv_label_create(root);
-    lv_label_set_text(label_hr, "75");
-    lv_obj_set_style_text_font(label_hr, &montserrat_48_digits, 0);
-    lv_obj_set_style_text_color(label_hr, lv_color_white(), 0);
-    lv_obj_align(label_hr, LV_ALIGN_CENTER, 0, -54);
+	label_hr = lv_label_create(root);
+	lv_label_set_text(label_hr, "75");
+	lv_obj_set_style_text_font(label_hr, &montserrat_48_digits, 0);
+	lv_obj_set_style_text_color(label_hr, lv_color_white(), 0);
+	lv_obj_set_style_text_opa(label_hr, 0, 0);
+	lv_obj_set_style_translate_y(label_hr, 10, 0);
+	lv_obj_align(label_hr, LV_ALIGN_CENTER, 0, -54);
 
-    /* bpm 单位 */
-    lv_obj_t *label_bpm = lv_label_create(root);
-    lv_label_set_text(label_bpm, "bpm");
-    lv_obj_set_style_text_font(label_bpm, &lv_font_montserrat_16, 0);
-    lv_obj_set_style_text_color(label_bpm, lv_color_hex(0x808080), 0);
-    lv_obj_align_to(label_bpm, label_hr, LV_ALIGN_OUT_RIGHT_MID, 8, 6);
+	label_bpm = lv_label_create(root);
+	lv_label_set_text(label_bpm, "bpm");
+	lv_obj_set_style_text_font(label_bpm, &lv_font_montserrat_16, 0);
+	lv_obj_set_style_text_color(label_bpm, lv_color_hex(0x808080), 0);
+	lv_obj_set_style_text_opa(label_bpm, 0, 0);
+	lv_obj_align_to(label_bpm, label_hr, LV_ALIGN_OUT_RIGHT_MID, 8, 6);
 
-    /* ==================== 下半区：血氧 ==================== */
+	/* ═══════════════ 下半区: 血氧 ═══════════════ */
 
-    /* 血氧图标 */
-    lv_obj_t *spo2_icon = lv_image_create(root);
-    lv_image_set_src(spo2_icon, &blood_oxygen_32);
-    lv_obj_align(spo2_icon, LV_ALIGN_CENTER, -80, 54);
+	spo2_icon = lv_image_create(root);
+	lv_image_set_src(spo2_icon, &blood_oxygen_48);
+	lv_obj_set_style_image_opa(spo2_icon, 0, 0);
+	lv_obj_set_style_translate_x(spo2_icon, 12, 0);
+	lv_obj_align(spo2_icon, LV_ALIGN_CENTER, -80, 54);
 
-    /* 数字锚定中心 */
-    label_spo2_num = lv_label_create(root);
-    lv_label_set_text(label_spo2_num, "");
-    lv_obj_set_style_text_font(label_spo2_num, &lv_font_montserrat_16, 0);
-    lv_obj_set_style_text_color(label_spo2_num, lv_color_white(), 0);
-    lv_obj_align(label_spo2_num, LV_ALIGN_CENTER, 0, 54);
+	label_spo2_num = lv_label_create(root);
+	lv_obj_set_style_text_opa(label_spo2_num, 0, 0);
+	lv_obj_align(label_spo2_num, LV_ALIGN_CENTER, 0, 54);
 
-    /* % 符号 */
-    label_spo2_pct = lv_label_create(root);
-    lv_label_set_text(label_spo2_pct, "");
-    lv_obj_set_style_text_font(label_spo2_pct, &lv_font_montserrat_16, 0);
-    lv_obj_set_style_text_color(label_spo2_pct, lv_color_hex(0x808080), 0);
-    lv_obj_align_to(label_spo2_pct, label_spo2_num, LV_ALIGN_OUT_RIGHT_TOP, 6, 8);
+	label_spo2_pct = lv_label_create(root);
+	lv_obj_set_style_text_opa(label_spo2_pct, 0, 0);
 
-    /* Ghost 按钮 */
-    btn_spo2 = lv_button_create(root);
-    lv_obj_set_size(btn_spo2, 180, 36);
-    lv_obj_set_style_bg_opa(btn_spo2, LV_OPA_TRANSP, 0);
-    lv_obj_set_style_border_color(btn_spo2, lv_color_hex(0xFF5500), 0);
-    lv_obj_set_style_border_color(btn_spo2, lv_color_hex(0xFF8833), LV_STATE_PRESSED);
-    lv_obj_set_style_border_width(btn_spo2, 2, 0);
-    lv_obj_set_style_border_opa(btn_spo2, LV_OPA_COVER, 0);
-    lv_obj_set_style_radius(btn_spo2, 18, 0);
-    lv_obj_set_style_shadow_width(btn_spo2, 0, 0);
-    lv_obj_set_style_outline_width(btn_spo2, 0, 0);
-    lv_obj_align(btn_spo2, LV_ALIGN_CENTER, 0, 108);
-    lv_obj_add_event_cb(btn_spo2, on_spo2_click, LV_EVENT_CLICKED, NULL);
+	animate_spo2_to(spo2_value, 420);
 
-    label_btn = lv_label_create(btn_spo2);
-    lv_label_set_text(label_btn, "MEASURE");
-    lv_obj_set_style_text_font(label_btn, &lv_font_montserrat_16, 0);
-    lv_obj_set_style_text_color(label_btn, lv_color_hex(0xFF5500), 0);
-    lv_obj_center(label_btn);
+	/* MEASURE 胶囊按钮 */
+	btn_spo2 = lv_button_create(root);
+	lv_obj_set_size(btn_spo2, 186, 40);
+	lv_obj_set_style_bg_color(btn_spo2, lv_color_hex(0x1C1C1E), 0);
+	lv_obj_set_style_bg_opa(btn_spo2, LV_OPA_60, 0);
+	lv_obj_set_style_border_color(btn_spo2, lv_color_hex(0xFF7A4D), 0);
+	lv_obj_set_style_border_color(btn_spo2, lv_color_hex(0xFF9A6B), LV_STATE_PRESSED);
+	lv_obj_set_style_border_width(btn_spo2, 1, 0);
+	lv_obj_set_style_border_opa(btn_spo2, LV_OPA_COVER, 0);
+	lv_obj_set_style_radius(btn_spo2, 20, 0);
+	lv_obj_set_style_shadow_width(btn_spo2, 0, 0);
+	lv_obj_set_style_outline_width(btn_spo2, 0, 0);
+	lv_obj_set_style_translate_y(btn_spo2, 16, 0);
+	lv_obj_align(btn_spo2, LV_ALIGN_CENTER, 0, 108);
+	lv_obj_add_event_cb(btn_spo2, on_spo2_click, LV_EVENT_CLICKED, NULL);
 
-    refresh_timer = lv_timer_create(on_refresh, 1000, NULL);
-    return root;
+	label_btn = lv_label_create(btn_spo2);
+	lv_label_set_text(label_btn, "MEASURE");
+	lv_obj_set_style_text_font(label_btn, &lv_font_montserrat_16, 0);
+	lv_obj_set_style_text_color(label_btn, lv_color_hex(0xFF7A4D), 0);
+	lv_obj_center(label_btn);
+
+	/* ═══════════════ 入场动画 ═══════════════ */
+
+	lv_obj_set_style_opa(root, 0, 0);
+	lv_anim_t a;
+	lv_anim_init(&a);
+	lv_anim_set_var(&a, root);
+	lv_anim_set_values(&a, 0, 255);
+	lv_anim_set_exec_cb(&a, opa_cb);
+	lv_anim_set_duration(&a, 180);
+	lv_anim_start(&a);
+
+	lv_anim_set_var(&a, heart_icon);
+	lv_anim_set_values(&a, -12, 0);
+	lv_anim_set_exec_cb(&a, translate_x_cb);
+	lv_anim_set_duration(&a, 300);
+	lv_anim_set_path_cb(&a, lv_anim_path_ease_out);
+	lv_anim_start(&a);
+
+	lv_anim_set_values(&a, 0, 255);
+	lv_anim_set_exec_cb(&a, image_opa_cb);
+	lv_anim_set_duration(&a, 260);
+	lv_anim_start(&a);
+
+	lv_anim_set_var(&a, label_hr);
+	lv_anim_set_values(&a, 10, 0);
+	lv_anim_set_exec_cb(&a, translate_y_cb);
+	lv_anim_set_duration(&a, 260);
+	lv_anim_set_delay(&a, 40);
+	lv_anim_set_path_cb(&a, lv_anim_path_ease_out);
+	lv_anim_start(&a);
+
+	lv_anim_set_values(&a, 0, 255);
+	lv_anim_set_exec_cb(&a, text_opa_cb);
+	lv_anim_start(&a);
+
+	lv_anim_set_var(&a, label_bpm);
+	lv_anim_set_values(&a, 0, 255);
+	lv_anim_set_exec_cb(&a, text_opa_cb);
+	lv_anim_set_duration(&a, 200);
+	lv_anim_set_delay(&a, 220);
+	lv_anim_start(&a);
+
+	lv_anim_set_var(&a, divider);
+	lv_anim_set_values(&a, 0, 180);
+	lv_anim_set_exec_cb(&a, width_cb);
+	lv_anim_set_duration(&a, 180);
+	lv_anim_set_delay(&a, 60);
+	lv_anim_set_path_cb(&a, lv_anim_path_ease_out);
+	lv_anim_start(&a);
+
+	lv_anim_set_var(&a, spo2_icon);
+	lv_anim_set_values(&a, 12, 0);
+	lv_anim_set_exec_cb(&a, translate_x_cb);
+	lv_anim_set_duration(&a, 260);
+	lv_anim_set_delay(&a, 120);
+	lv_anim_set_path_cb(&a, lv_anim_path_ease_out);
+	lv_anim_start(&a);
+
+	lv_anim_set_values(&a, 0, 200);
+	lv_anim_set_exec_cb(&a, image_opa_cb);
+	lv_anim_set_duration(&a, 240);
+	lv_anim_start(&a);
+
+	lv_anim_set_var(&a, label_spo2_num);
+	lv_anim_set_values(&a, 0, 255);
+	lv_anim_set_exec_cb(&a, text_opa_cb);
+	lv_anim_set_duration(&a, 200);
+	lv_anim_set_delay(&a, 140);
+	lv_anim_start(&a);
+
+	lv_anim_set_var(&a, label_spo2_pct);
+	lv_anim_start(&a);
+
+	lv_anim_set_var(&a, btn_spo2);
+	lv_anim_set_values(&a, 16, 0);
+	lv_anim_set_exec_cb(&a, translate_y_cb);
+	lv_anim_set_duration(&a, 280);
+	lv_anim_set_delay(&a, 160);
+	lv_anim_set_path_cb(&a, lv_anim_path_ease_out);
+	lv_anim_set_completed_cb(&a, on_entry_complete);
+	lv_anim_start(&a);
+
+	refresh_timer = lv_timer_create(on_refresh, 1000, NULL);
+	return root;
 }
+
+/* ═══════════════ 销毁 ═══════════════ */
 
 static void destroy(void)
 {
-    if (spo2_measuring) watch_data_spo2_abort();
-    if (refresh_timer) { lv_timer_delete(refresh_timer); refresh_timer = NULL; }
-    lv_anim_delete(NULL, arc_anim_cb);
-    close_meas_popup();
-    spo2_measuring = 0;
-    spo2_countdown = 0;
+	if (refresh_timer) { lv_timer_delete(refresh_timer); refresh_timer = NULL; }
+	if (meas_timer)    { lv_timer_delete(meas_timer);    meas_timer    = NULL; }
+	if (result_timer)  { lv_timer_delete(result_timer);  result_timer  = NULL; }
+	if (spo2_measuring) { watch_data_spo2_abort(); }
+	lv_anim_delete(NULL, opa_cb);
+	lv_anim_delete(NULL, text_opa_cb);
+	lv_anim_delete(NULL, image_opa_cb);
+	lv_anim_delete(NULL, border_opa_cb);
+	lv_anim_delete(NULL, width_cb);
+	lv_anim_delete(NULL, translate_x_cb);
+	lv_anim_delete(NULL, translate_y_cb);
+	lv_anim_delete(NULL, arc_anim_cb);
+	lv_anim_delete(NULL, arc_indicator_opa_cb);
+	lv_anim_delete(NULL, arc_rotation_cb);
+	lv_anim_delete(NULL, spo2_roll_cb);
+	exit_meas_mode();
+	idle_animations_running = false;
+	spo2_measuring = 0;
+	spo2_countdown = 0;
 }
 
 static void update(void) {}
 
 const page_t page_heartrate = {
-    .name = "heartrate",
-    .type = PAGE_TYPE_SPOKE,
-    .create = create,
-    .destroy = destroy,
-    .update = update,
+	.name = "heartrate",
+	.type = PAGE_TYPE_SPOKE,
+	.create = create,
+	.destroy = destroy,
+	.update = update,
 };
