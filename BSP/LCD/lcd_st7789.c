@@ -17,7 +17,7 @@
  */
 
 #include "lcd_st7789.h"
-
+#include "lv_port_disp.h"
 /* ========================== 全局函数实现 ========================== */
 
 /**
@@ -401,4 +401,54 @@ void ST7789_SetBacklight(uint8_t percent)
 
     uint16_t pulse = (uint16_t)percent * LCD_BL_MAX / 100;
     __HAL_TIM_SET_COMPARE(LCD_BL_TIM, LCD_BL_CH, pulse);
+}
+
+
+/* ═══════════════ DMA 异步刷新接口 ═══════════════
+ *
+ * 以下两个函数替代了原来的 ST7789_FlushArea 阻塞式刷新。
+ *
+ * 【设计思路】
+ *   ST7789_FlushArea_DMA: CASET/RASET/RAMWR 命令用阻塞 SPI 发出（命令必须
+ *   保证时序），像素数据用 HAL_SPI_Transmit_DMA 异步发送。CS 保持低（函数
+ *   不拉高），让 ST7789 知道像素流还在进行中。
+ *
+ *   ST7789_FlushComplete: DMA 传输完成后由 HAL_SPI_TxCpltCallback 调用，
+ *   拉高 CS 结束本次传输，保护 SPI 总线不被意外片选干扰。
+ *
+ *   HAL_SPI_TxCpltCallback: HAL 的 DMA 完成回调（覆盖了 __weak 默认实现）。
+ *   在 SPI2 的 DMA 发送完成后：拉 CS → 通知 LVGL 释放 buffer。
+ *
+ * 【为什么 CS 在中断里拉高】
+ *   如果 DMA 还在发数据就把 CS 拉高，ST7789 认为传输结束，后半截像素丢失 →
+ *   画面撕裂。必须等 DMA 完全发完（传输完成中断）才 CS↑。
+ */
+void ST7789_FlushArea_DMA(uint16_t x, uint16_t y, uint16_t w, uint16_t h, const uint8_t* data) {
+    uint16_t xs = x, xe = x + w - 1;
+    uint16_t ys = y + OFFSET_Y, ye = y + OFFSET_Y + h - 1;
+
+    /* CASET + RASET 设定写入窗口（阻塞发送，命令不能异步） */
+    { uint8_t p[] = {xs>>8, xs&0xFF, xe>>8, xe&0xFF}; ST7789_SendCmd(0x2A, p, 4); }
+    { uint8_t p[] = {ys>>8, ys&0xFF, ye>>8, ye&0xFF}; ST7789_SendCmd(0x2B, p, 4); }
+
+    LCD_CS_LOW();
+    LCD_DC_LOW();
+    uint8_t ramwr = 0x2C;
+    LCD_SPI_TX(&ramwr, 1);      /* 发送 RAMWR 命令（1字节，阻塞） */
+    LCD_DC_HIGH();               /* 之后全是像素数据 */
+
+    /* 像素数据用 DMA 异步发送，函数立即返回，CS 保持低 */
+    HAL_SPI_Transmit_DMA(LCD_SPI, (uint8_t*)data, (uint32_t)w * h * 2);
+}
+
+void ST7789_FlushComplete(void) {
+    LCD_CS_HIGH();  /* DMA 发完，拉高 CS 保护总线 */
+}
+
+/* 覆盖 HAL 的 __weak HAL_SPI_TxCpltCallback */
+void HAL_SPI_TxCpltCallback(SPI_HandleTypeDef *hspi) {
+    if (LCD_SPI == hspi) {              /* 只处理 SPI2 的传输完成 */
+        ST7789_FlushComplete();         /* CS↑ 结束写屏 */
+        lv_port_disp_flush_ready();     /* 通知 LVGL 释放 buffer */
+    }
 }

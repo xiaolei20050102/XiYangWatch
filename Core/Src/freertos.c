@@ -139,16 +139,6 @@ void StartDefaultTask(void *argument)
   /* USER CODE END StartDefaultTask */
 }
 
-static void btn_cb(lv_event_t * e)
-{
-  lv_event_code_t code = lv_event_get_code(e);
-  if(code == LV_EVENT_PRESSED || code == LV_EVENT_RELEASED) {
-    bool pressed = (code == LV_EVENT_PRESSED);
-    lv_obj_t * btn = lv_event_get_target(e);
-    lv_obj_set_style_bg_color(btn, pressed ? lv_color_white() : lv_color_hex(0x333333), 0);
-  }
-}
-
 void StartLvglTask(void *argument)
 {
   lv_init();

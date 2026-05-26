@@ -12,6 +12,7 @@ extern "C" {
 #include "lvgl.h"
 
 void lv_port_disp_init(void);
+void lv_port_disp_flush_ready(void);
 
 #ifdef __cplusplus
 }

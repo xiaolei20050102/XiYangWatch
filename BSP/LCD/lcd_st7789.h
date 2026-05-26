@@ -82,4 +82,8 @@ void ST7789_DrawCircle(uint16_t x0, uint16_t y0, uint16_t r, uint16_t color);
 void ST7789_Test(void);
 void ST7789_SetBacklight(uint8_t percent);  /* 0~100, 0=灭 100=最亮 */
 
+/*========================== DMA 异步刷新接口 ==========================*/
+
+void ST7789_FlushArea_DMA(uint16_t x, uint16_t y, uint16_t w, uint16_t h, const uint8_t* data);
+void ST7789_FlushComplete(void);
 #endif
