@@ -73,7 +73,6 @@ static lv_obj_t *create(lv_obj_t *parent)
     lv_obj_align(container_alt, LV_ALIGN_TOP_LEFT, 80, 30);
 
     label_altitude = lv_label_create(container_alt);
-    lv_label_set_text(label_altitude, "156");
     lv_obj_set_style_text_font(label_altitude, &montserrat_48_digits, 0);
     lv_obj_set_style_text_color(label_altitude, lv_color_hex(0xFF6600), 0);
     lv_obj_align(label_altitude, LV_ALIGN_TOP_LEFT, 0, 0);
@@ -116,7 +115,6 @@ static lv_obj_t *create(lv_obj_t *parent)
     lv_obj_align(container_baro, LV_ALIGN_TOP_LEFT, 80, 170);
 
     label_pressure = lv_label_create(container_baro);
-    lv_label_set_text(label_pressure, "1013");
     lv_obj_set_style_text_font(label_pressure, &montserrat_48_digits, 0);
     lv_obj_set_style_text_color(label_pressure, lv_color_white(), 0);
     lv_obj_align(label_pressure, LV_ALIGN_TOP_LEFT, 0, 0);
@@ -193,6 +191,8 @@ static lv_obj_t *create(lv_obj_t *parent)
     lv_anim_set_delay(&a, 400);
     lv_anim_start(&a);
 
+    /* load initial data from provider */
+    on_refresh(NULL);
     refresh_timer = lv_timer_create(on_refresh, 1000, NULL);
     return root;
 }

@@ -36,6 +36,8 @@ extern const lv_image_dsc_t heart_rate_48;
 extern const lv_image_dsc_t blood_oxygen_48;
 extern const lv_font_t montserrat_48_digits;
 
+static void on_refresh(lv_timer_t *timer);
+
 /* ==================== 通用动画回调 ==================== */
 
 static void translate_x_cb(void *var, int32_t v) {
@@ -182,6 +184,7 @@ static void on_entry_complete(lv_anim_t *a)
 {
 	(void)a;
 	start_idle_animations();
+	refresh_timer = lv_timer_create(on_refresh, 1000, NULL);
 }
 
 /* ==================== 仪表盘淡入/淡出 ==================== */
@@ -523,9 +526,7 @@ static void on_spo2_click(lv_event_t *e)
 
 static void on_refresh(lv_timer_t *timer)
 {
-	static int32_t tick;
-	tick++;
-	hr_value = 75 + ((tick % 7) - 3);
+	hr_value = watch_data_get_heart_rate();
 	lv_label_set_text_fmt(label_hr, "%d", hr_value);
 }
 
@@ -534,6 +535,7 @@ static void on_refresh(lv_timer_t *timer)
 static lv_obj_t *create(lv_obj_t *parent)
 {
 	root = lv_obj_create(parent);
+	lv_obj_set_style_opa(root, 0, 0);
 	lv_obj_set_size(root, 240, 280);
 	lv_obj_set_style_pad_all(root, 0, 0);
 	lv_obj_set_style_border_width(root, 0, 0);
@@ -553,39 +555,30 @@ static lv_obj_t *create(lv_obj_t *parent)
 
 	heart_icon = lv_image_create(root);
 	lv_image_set_src(heart_icon, &heart_rate_48);
-	lv_obj_set_style_image_opa(heart_icon, 0, 0);
-	lv_obj_set_style_translate_x(heart_icon, -12, 0);
 	lv_obj_align(heart_icon, LV_ALIGN_CENTER, -84, -51);
 
 	label_hr = lv_label_create(root);
-	lv_label_set_text(label_hr, "75");
+	lv_label_set_text_fmt(label_hr, "%d", watch_data_get_heart_rate());
 	lv_obj_set_style_text_font(label_hr, &montserrat_48_digits, 0);
 	lv_obj_set_style_text_color(label_hr, lv_color_white(), 0);
-	lv_obj_set_style_text_opa(label_hr, 0, 0);
-	lv_obj_set_style_translate_y(label_hr, 10, 0);
 	lv_obj_align(label_hr, LV_ALIGN_CENTER, 0, -54);
 
 	label_bpm = lv_label_create(root);
 	lv_label_set_text(label_bpm, "bpm");
 	lv_obj_set_style_text_font(label_bpm, &lv_font_montserrat_16, 0);
 	lv_obj_set_style_text_color(label_bpm, lv_color_hex(0x808080), 0);
-	lv_obj_set_style_text_opa(label_bpm, 0, 0);
-	lv_obj_align_to(label_bpm, label_hr, LV_ALIGN_OUT_RIGHT_MID, 8, 6);
+	lv_obj_align_to(label_bpm, label_hr, LV_ALIGN_OUT_RIGHT_BOTTOM, 8, 0);
 
 	/* ═══════════════ 下半区: 血氧 ═══════════════ */
 
 	spo2_icon = lv_image_create(root);
 	lv_image_set_src(spo2_icon, &blood_oxygen_48);
-	lv_obj_set_style_image_opa(spo2_icon, 0, 0);
-	lv_obj_set_style_translate_x(spo2_icon, 12, 0);
 	lv_obj_align(spo2_icon, LV_ALIGN_CENTER, -80, 54);
 
 	label_spo2_num = lv_label_create(root);
-	lv_obj_set_style_text_opa(label_spo2_num, 0, 0);
 	lv_obj_align(label_spo2_num, LV_ALIGN_CENTER, 0, 54);
 
 	label_spo2_pct = lv_label_create(root);
-	lv_obj_set_style_text_opa(label_spo2_pct, 0, 0);
 
 	animate_spo2_to(spo2_value, 420);
 
@@ -601,7 +594,6 @@ static lv_obj_t *create(lv_obj_t *parent)
 	lv_obj_set_style_radius(btn_spo2, 20, 0);
 	lv_obj_set_style_shadow_width(btn_spo2, 0, 0);
 	lv_obj_set_style_outline_width(btn_spo2, 0, 0);
-	lv_obj_set_style_translate_y(btn_spo2, 16, 0);
 	lv_obj_align(btn_spo2, LV_ALIGN_CENTER, 0, 108);
 	lv_obj_add_event_cb(btn_spo2, on_spo2_click, LV_EVENT_CLICKED, NULL);
 
@@ -611,10 +603,22 @@ static lv_obj_t *create(lv_obj_t *parent)
 	lv_obj_set_style_text_color(label_btn, lv_color_hex(0xFF7A4D), 0);
 	lv_obj_center(label_btn);
 
-	/* ═══════════════ 入场动画 ═══════════════ */
+	/* ═══════════════ 设置初始动画状态 (对齐之后) ═══════════════ */
 
-	lv_obj_set_style_opa(root, 0, 0);
+	lv_obj_set_style_translate_x(heart_icon, -80, 0);
+	lv_obj_set_style_translate_x(label_hr, -120, 0);
+	lv_obj_set_style_translate_x(label_bpm, -120, 0);
+
+	lv_obj_set_style_translate_x(spo2_icon, 160, 0);
+	lv_obj_set_style_translate_x(label_spo2_num, 160, 0);
+	lv_obj_set_style_translate_x(label_spo2_pct, 160, 0);
+	lv_obj_set_style_translate_x(btn_spo2, 160, 0);
+
+		/* ═══════════════ 入场动画 ═══════════════ */
+
 	lv_anim_t a;
+
+	/* root 淡入 */
 	lv_anim_init(&a);
 	lv_anim_set_var(&a, root);
 	lv_anim_set_values(&a, 0, 255);
@@ -622,37 +626,7 @@ static lv_obj_t *create(lv_obj_t *parent)
 	lv_anim_set_duration(&a, 180);
 	lv_anim_start(&a);
 
-	lv_anim_set_var(&a, heart_icon);
-	lv_anim_set_values(&a, -12, 0);
-	lv_anim_set_exec_cb(&a, translate_x_cb);
-	lv_anim_set_duration(&a, 300);
-	lv_anim_set_path_cb(&a, lv_anim_path_ease_out);
-	lv_anim_start(&a);
-
-	lv_anim_set_values(&a, 0, 255);
-	lv_anim_set_exec_cb(&a, image_opa_cb);
-	lv_anim_set_duration(&a, 260);
-	lv_anim_start(&a);
-
-	lv_anim_set_var(&a, label_hr);
-	lv_anim_set_values(&a, 10, 0);
-	lv_anim_set_exec_cb(&a, translate_y_cb);
-	lv_anim_set_duration(&a, 260);
-	lv_anim_set_delay(&a, 40);
-	lv_anim_set_path_cb(&a, lv_anim_path_ease_out);
-	lv_anim_start(&a);
-
-	lv_anim_set_values(&a, 0, 255);
-	lv_anim_set_exec_cb(&a, text_opa_cb);
-	lv_anim_start(&a);
-
-	lv_anim_set_var(&a, label_bpm);
-	lv_anim_set_values(&a, 0, 255);
-	lv_anim_set_exec_cb(&a, text_opa_cb);
-	lv_anim_set_duration(&a, 200);
-	lv_anim_set_delay(&a, 220);
-	lv_anim_start(&a);
-
+	/* ── 分隔线宽度展开 ── */
 	lv_anim_set_var(&a, divider);
 	lv_anim_set_values(&a, 0, 180);
 	lv_anim_set_exec_cb(&a, width_cb);
@@ -661,39 +635,74 @@ static lv_obj_t *create(lv_obj_t *parent)
 	lv_anim_set_path_cb(&a, lv_anim_path_ease_out);
 	lv_anim_start(&a);
 
-	lv_anim_set_var(&a, spo2_icon);
-	lv_anim_set_values(&a, 12, 0);
+	/* ═══ 上半区：左→右依次弹入 (单位→数据→图标) ═══ */
+
+	/* label_bpm "bpm" — t=200ms */
+	lv_anim_set_var(&a, label_bpm);
+	lv_anim_set_values(&a, -120, 0);
 	lv_anim_set_exec_cb(&a, translate_x_cb);
-	lv_anim_set_duration(&a, 260);
-	lv_anim_set_delay(&a, 120);
-	lv_anim_set_path_cb(&a, lv_anim_path_ease_out);
+	lv_anim_set_duration(&a, 360);
+	lv_anim_set_delay(&a, 200);
+	lv_anim_set_path_cb(&a, lv_anim_path_overshoot);
 	lv_anim_start(&a);
 
-	lv_anim_set_values(&a, 0, 200);
-	lv_anim_set_exec_cb(&a, image_opa_cb);
-	lv_anim_set_duration(&a, 240);
+	/* label_hr "75" — t=280ms */
+	lv_anim_set_var(&a, label_hr);
+	lv_anim_set_values(&a, -120, 0);
+	lv_anim_set_exec_cb(&a, translate_x_cb);
+	lv_anim_set_duration(&a, 360);
+	lv_anim_set_delay(&a, 280);
+	lv_anim_set_path_cb(&a, lv_anim_path_overshoot);
 	lv_anim_start(&a);
 
+	/* heart_icon — t=360ms */
+	lv_anim_set_var(&a, heart_icon);
+	lv_anim_set_values(&a, -80, 0);
+	lv_anim_set_exec_cb(&a, translate_x_cb);
+	lv_anim_set_duration(&a, 360);
+	lv_anim_set_delay(&a, 360);
+	lv_anim_set_path_cb(&a, lv_anim_path_overshoot);
+	lv_anim_start(&a);
+
+	/* ═══ 下半区：右→左依次弹入 (图标→数据→单位→按钮) ═══ */
+
+	/* spo2_icon — t=200ms */
+	lv_anim_set_var(&a, spo2_icon);
+	lv_anim_set_values(&a, 160, 0);
+	lv_anim_set_exec_cb(&a, translate_x_cb);
+	lv_anim_set_duration(&a, 360);
+	lv_anim_set_delay(&a, 200);
+	lv_anim_set_path_cb(&a, lv_anim_path_overshoot);
+	lv_anim_start(&a);
+
+	/* label_spo2_num "98" — t=280ms */
 	lv_anim_set_var(&a, label_spo2_num);
-	lv_anim_set_values(&a, 0, 255);
-	lv_anim_set_exec_cb(&a, text_opa_cb);
-	lv_anim_set_duration(&a, 200);
-	lv_anim_set_delay(&a, 140);
+	lv_anim_set_values(&a, 160, 0);
+	lv_anim_set_exec_cb(&a, translate_x_cb);
+	lv_anim_set_duration(&a, 360);
+	lv_anim_set_delay(&a, 280);
+	lv_anim_set_path_cb(&a, lv_anim_path_overshoot);
 	lv_anim_start(&a);
 
+	/* label_spo2_pct "%" — t=360ms */
 	lv_anim_set_var(&a, label_spo2_pct);
+	lv_anim_set_values(&a, 160, 0);
+	lv_anim_set_exec_cb(&a, translate_x_cb);
+	lv_anim_set_duration(&a, 360);
+	lv_anim_set_delay(&a, 360);
+	lv_anim_set_path_cb(&a, lv_anim_path_overshoot);
 	lv_anim_start(&a);
 
+	/* btn_spo2 — t=440ms → 触发呼吸 */
 	lv_anim_set_var(&a, btn_spo2);
-	lv_anim_set_values(&a, 16, 0);
-	lv_anim_set_exec_cb(&a, translate_y_cb);
-	lv_anim_set_duration(&a, 280);
-	lv_anim_set_delay(&a, 160);
-	lv_anim_set_path_cb(&a, lv_anim_path_ease_out);
+	lv_anim_set_values(&a, 160, 0);
+	lv_anim_set_exec_cb(&a, translate_x_cb);
+	lv_anim_set_duration(&a, 360);
+	lv_anim_set_delay(&a, 440);
+	lv_anim_set_path_cb(&a, lv_anim_path_overshoot);
 	lv_anim_set_completed_cb(&a, on_entry_complete);
 	lv_anim_start(&a);
 
-	refresh_timer = lv_timer_create(on_refresh, 1000, NULL);
 	return root;
 }
 

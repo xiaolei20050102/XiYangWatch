@@ -658,9 +658,9 @@
 #define LV_FONT_MONTSERRAT_18 0
 #define LV_FONT_MONTSERRAT_20 1
 #define LV_FONT_MONTSERRAT_22 0
-#define LV_FONT_MONTSERRAT_24 1
+#define LV_FONT_MONTSERRAT_24 0
 #define LV_FONT_MONTSERRAT_26 0
-#define LV_FONT_MONTSERRAT_28 1   /* 数据数值 (替代24) */
+#define LV_FONT_MONTSERRAT_28 0   /* 数据数值 (替代24) */
 #define LV_FONT_MONTSERRAT_30 0
 #define LV_FONT_MONTSERRAT_32 0
 #define LV_FONT_MONTSERRAT_34 0
@@ -680,7 +680,7 @@
 
 /** Pixel perfect monospaced fonts */
 #define LV_FONT_UNSCII_8  0
-#define LV_FONT_UNSCII_16 1
+#define LV_FONT_UNSCII_16 0
 
 /** Optionally declare custom fonts here.
  *

@@ -65,8 +65,7 @@ virtualFolder:
                 - path: ../App/Images/Icons/humidity_32.c
               folders: []
             - name: Wallpapers
-              files:
-                - path: ../App/Images/Wallpapers/Pure_black_background.c
+              files: []
               folders: []
         - name: Pages
           files:

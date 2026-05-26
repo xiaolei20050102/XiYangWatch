@@ -57,7 +57,6 @@ static lv_obj_t *create(lv_obj_t *parent)
     lv_obj_align(temp_label, LV_ALIGN_TOP_LEFT, 12, 48);
 
     label_temp = lv_label_create(card_temp);
-    lv_label_set_text(label_temp, "22");
     lv_obj_set_style_text_font(label_temp, &montserrat_48_digits, 0);
     lv_obj_set_style_text_color(label_temp, lv_color_white(), 0);
     lv_obj_align(label_temp, LV_ALIGN_BOTTOM_RIGHT, -42, -8);
@@ -91,7 +90,6 @@ static lv_obj_t *create(lv_obj_t *parent)
     lv_obj_align(humi_label, LV_ALIGN_TOP_LEFT, 12, 48);
 
     label_humi = lv_label_create(card_humi);
-    lv_label_set_text(label_humi, "55");
     lv_obj_set_style_text_font(label_humi, &montserrat_48_digits, 0);
     lv_obj_set_style_text_color(label_humi, lv_color_white(), 0);
     lv_obj_align(label_humi, LV_ALIGN_BOTTOM_RIGHT, -42, -8);
@@ -117,6 +115,8 @@ static lv_obj_t *create(lv_obj_t *parent)
     lv_anim_set_delay(&a, 80);
     lv_anim_start(&a);
 
+    /* load initial data from provider */
+    on_refresh(NULL);
     refresh_timer = lv_timer_create(on_refresh, 1000, NULL);
     return root;
 }
