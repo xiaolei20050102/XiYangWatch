@@ -66,7 +66,7 @@ const osThreadAttr_t defaultTask_attributes = {
 osThreadId_t lvglTaskHandle;
 const osThreadAttr_t lvglTask_attributes = {
   .name = "lvglTask",
-  .stack_size = 1024 * 4,
+  .stack_size = 2048 * 4,
   .priority = (osPriority_t) osPriorityNormal,
 };
 
@@ -162,8 +162,8 @@ void StartLvglTask(void *argument)
         case 0x02: g = GESTURE_UP;    break;
         case 0x03: g = GESTURE_LEFT;  break;
         case 0x04: g = GESTURE_RIGHT; break;
-        case 0x05: g = GESTURE_CLICK; break;
         case 0x0C: g = GESTURE_LONGPRESS; break;
+        /* 0x05 (CLICK) 不进入手势系统，与 PC 模拟器一致，由 LVGL 事件处理 */
     }
     gesture_feed(g);
 

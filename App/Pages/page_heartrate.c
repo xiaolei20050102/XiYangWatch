@@ -55,11 +55,14 @@ static void text_opa_cb(void *var, int32_t v) {
 static void image_opa_cb(void *var, int32_t v) {
 	lv_obj_set_style_image_opa((lv_obj_t *)var, v, 0);
 }
+static void scale_cb(void *var, int32_t v) {
+	lv_obj_set_style_transform_scale((lv_obj_t *)var, v, 0);
+}
 static void border_opa_cb(void *var, int32_t v) {
 	lv_obj_set_style_border_opa((lv_obj_t *)var, v, 0);
 }
-static void width_cb(void *var, int32_t v) {
-	lv_obj_set_style_width((lv_obj_t *)var, v, 0);
+static void line_opa_cb(void *var, int32_t v) {
+	lv_obj_set_style_line_opa((lv_obj_t *)var, v, 0);
 }
 static void arc_anim_cb(void *var, int32_t v) {
 	(void)var;
@@ -139,7 +142,7 @@ static void exit_meas_mode(void)
 static void stop_idle_animations(void)
 {
 	if (!idle_animations_running) return;
-	lv_anim_delete(NULL, image_opa_cb);   /* heart_icon breathing */
+	lv_anim_delete(NULL, scale_cb);   /* heart_icon pump */
 	lv_anim_delete(NULL, text_opa_cb);    /* label_hr pulse */
 	lv_anim_delete(NULL, border_opa_cb);  /* btn_spo2 border */
 	idle_animations_running = false;
@@ -150,12 +153,13 @@ static void start_idle_animations(void)
 	if (idle_animations_running) return;
 	lv_anim_t a;
 
+	/* 心跳泵动: 从收缩态快速弹回原大 → 再缓缓缩回，256=1.0x */
 	lv_anim_init(&a);
 	lv_anim_set_var(&a, heart_icon);
-	lv_anim_set_values(&a, 100, 255);
-	lv_anim_set_exec_cb(&a, image_opa_cb);
-	lv_anim_set_duration(&a, 1000);
-	lv_anim_set_playback_duration(&a, 1000);
+	lv_anim_set_values(&a, 210, 256);
+	lv_anim_set_exec_cb(&a, scale_cb);
+	lv_anim_set_duration(&a, 100);
+	lv_anim_set_playback_duration(&a, 500);
 	lv_anim_set_repeat_count(&a, LV_ANIM_REPEAT_INFINITE);
 	lv_anim_start(&a);
 
@@ -543,13 +547,16 @@ static lv_obj_t *create(lv_obj_t *parent)
 	lv_obj_set_style_bg_opa(root, LV_OPA_COVER, 0);
 
 	/* ═══════════════ 分割线 ═══════════════ */
-	divider = lv_obj_create(root);
-	lv_obj_set_size(divider, 0, 1);
-	lv_obj_set_style_bg_color(divider, lv_color_hex(0x2A2A2A), 0);
-	lv_obj_set_style_bg_opa(divider, LV_OPA_30, 0);
-	lv_obj_set_style_border_width(divider, 0, 0);
-	lv_obj_set_style_pad_all(divider, 0, 0);
-	lv_obj_align(divider, LV_ALIGN_CENTER, 0, 0);
+	{
+		static const lv_point_precise_t div_pts[] = { {0, 0}, {192, 0} };
+		divider = lv_line_create(root);
+		lv_obj_set_size(divider, 192, 1);
+		lv_line_set_points(divider, div_pts, 2);
+		lv_obj_set_style_line_color(divider, lv_color_hex(0x2A2A2A), 0);
+		lv_obj_set_style_line_width(divider, 1, 0);
+		lv_obj_set_style_line_opa(divider, LV_OPA_COVER, 0);
+		lv_obj_align(divider, LV_ALIGN_CENTER, 0, 0);
+	}
 
 	/* ═══════════════ 上半区: 心率 ═══════════════ */
 
@@ -586,10 +593,10 @@ static lv_obj_t *create(lv_obj_t *parent)
 	btn_spo2 = lv_button_create(root);
 	lv_obj_set_size(btn_spo2, 186, 40);
 	lv_obj_set_style_bg_color(btn_spo2, lv_color_hex(0x1C1C1E), 0);
-	lv_obj_set_style_bg_opa(btn_spo2, LV_OPA_60, 0);
+	lv_obj_set_style_bg_opa(btn_spo2, LV_OPA_TRANSP, 0);
 	lv_obj_set_style_border_color(btn_spo2, lv_color_hex(0xFF7A4D), 0);
 	lv_obj_set_style_border_color(btn_spo2, lv_color_hex(0xFF9A6B), LV_STATE_PRESSED);
-	lv_obj_set_style_border_width(btn_spo2, 1, 0);
+	lv_obj_set_style_border_width(btn_spo2, 2, 0);
 	lv_obj_set_style_border_opa(btn_spo2, LV_OPA_COVER, 0);
 	lv_obj_set_style_radius(btn_spo2, 20, 0);
 	lv_obj_set_style_shadow_width(btn_spo2, 0, 0);
@@ -606,13 +613,15 @@ static lv_obj_t *create(lv_obj_t *parent)
 	/* ═══════════════ 设置初始动画状态 (对齐之后) ═══════════════ */
 
 	lv_obj_set_style_translate_x(heart_icon, -80, 0);
+	lv_obj_set_style_transform_scale(heart_icon, 210, 0);
 	lv_obj_set_style_translate_x(label_hr, -120, 0);
 	lv_obj_set_style_translate_x(label_bpm, -120, 0);
 
 	lv_obj_set_style_translate_x(spo2_icon, 160, 0);
 	lv_obj_set_style_translate_x(label_spo2_num, 160, 0);
 	lv_obj_set_style_translate_x(label_spo2_pct, 160, 0);
-	lv_obj_set_style_translate_x(btn_spo2, 160, 0);
+	lv_obj_set_style_translate_y(btn_spo2, 40, 0);
+	lv_obj_set_style_opa(btn_spo2, 0, 0);
 
 		/* ═══════════════ 入场动画 ═══════════════ */
 
@@ -626,11 +635,11 @@ static lv_obj_t *create(lv_obj_t *parent)
 	lv_anim_set_duration(&a, 180);
 	lv_anim_start(&a);
 
-	/* ── 分隔线宽度展开 ── */
+	/* ── 分隔线淡入 ── */
 	lv_anim_set_var(&a, divider);
-	lv_anim_set_values(&a, 0, 180);
-	lv_anim_set_exec_cb(&a, width_cb);
-	lv_anim_set_duration(&a, 180);
+	lv_anim_set_values(&a, LV_OPA_0, LV_OPA_COVER);
+	lv_anim_set_exec_cb(&a, line_opa_cb);
+	lv_anim_set_duration(&a, 300);
 	lv_anim_set_delay(&a, 60);
 	lv_anim_set_path_cb(&a, lv_anim_path_ease_out);
 	lv_anim_start(&a);
@@ -693,13 +702,19 @@ static lv_obj_t *create(lv_obj_t *parent)
 	lv_anim_set_path_cb(&a, lv_anim_path_overshoot);
 	lv_anim_start(&a);
 
-	/* btn_spo2 — t=440ms → 触发呼吸 */
+	/* btn_spo2 — 等上下半区弹入完成后，从下方上浮弹入 */
 	lv_anim_set_var(&a, btn_spo2);
-	lv_anim_set_values(&a, 160, 0);
-	lv_anim_set_exec_cb(&a, translate_x_cb);
-	lv_anim_set_duration(&a, 360);
-	lv_anim_set_delay(&a, 440);
+	lv_anim_set_values(&a, 40, 0);
+	lv_anim_set_exec_cb(&a, translate_y_cb);
+	lv_anim_set_duration(&a, 380);
+	lv_anim_set_delay(&a, 700);
 	lv_anim_set_path_cb(&a, lv_anim_path_overshoot);
+	lv_anim_start(&a);
+
+	lv_anim_set_values(&a, 0, 255);
+	lv_anim_set_exec_cb(&a, opa_cb);
+	lv_anim_set_duration(&a, 280);
+	lv_anim_set_path_cb(&a, lv_anim_path_ease_out);
 	lv_anim_set_completed_cb(&a, on_entry_complete);
 	lv_anim_start(&a);
 
@@ -717,8 +732,9 @@ static void destroy(void)
 	lv_anim_delete(NULL, opa_cb);
 	lv_anim_delete(NULL, text_opa_cb);
 	lv_anim_delete(NULL, image_opa_cb);
+	lv_anim_delete(NULL, scale_cb);
 	lv_anim_delete(NULL, border_opa_cb);
-	lv_anim_delete(NULL, width_cb);
+	lv_anim_delete(NULL, line_opa_cb);
 	lv_anim_delete(NULL, translate_x_cb);
 	lv_anim_delete(NULL, translate_y_cb);
 	lv_anim_delete(NULL, arc_anim_cb);

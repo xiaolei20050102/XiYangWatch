@@ -98,10 +98,7 @@ Touch_Gesture_t CST816_GetGesture(void)
 {
     uint8_t g = 0;
     TOUCH_I2C_READ(REG_GestureID, &g, 1);
-    if (g) {
-        uint8_t clr = 0;
-        TOUCH_I2C_WRITE(REG_GestureID, &clr, 1);
-    }
+    /* 手册说明读后自动清零，无需额外写 0，多余的 I2C 写可能干扰触摸状态 */
     return (Touch_Gesture_t)g;
 }
 

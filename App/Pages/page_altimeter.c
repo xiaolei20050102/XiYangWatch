@@ -16,7 +16,7 @@ extern const lv_image_dsc_t elevation;
 extern const lv_image_dsc_t barometric_pressure;
 extern const lv_font_t montserrat_48_digits;
 
-static const lv_point_precise_t div_pts[] = { {20, 0}, {220, 0} };
+static const lv_point_precise_t div_pts[] = { {0, 0}, {192, 0} };
 
 static void translate_anim_cb(void *var, int32_t v)
 {
@@ -48,8 +48,9 @@ static lv_obj_t *create(lv_obj_t *parent)
     lv_obj_set_style_bg_color(root, lv_color_black(), 0);
     lv_obj_set_style_bg_opa(root, LV_OPA_COVER, 0);
 
-    /* ── 中心分割线 (极暗细线) ── */
+    /* ── 中心分割线 ── */
     lv_obj_t *divider = lv_line_create(root);
+    lv_obj_set_size(divider, 192, 1);
     lv_line_set_points(divider, div_pts, 2);
     lv_obj_set_style_line_color(divider, lv_color_hex(0x2A2A2A), 0);
     lv_obj_set_style_line_width(divider, 1, 0);

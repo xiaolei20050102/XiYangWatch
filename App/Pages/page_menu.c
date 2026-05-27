@@ -52,8 +52,6 @@ static void row_opa_cb(void *var, int32_t v)
 
 static void item_click_cb(lv_event_t *e)
 {
-    /* 滑动手势刚触发过 → 忽略点击，防止 swipe 被误认为 click */
-    if (gesture_was_recent()) return;
     page_id_t target = (page_id_t)(uintptr_t)lv_event_get_user_data(e);
     page_manager_push_fade(target);
 }

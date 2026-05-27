@@ -23,31 +23,30 @@ void status_bar_create(lv_obj_t *parent)
     lv_obj_set_style_text_color(label_time, lv_color_white(), 0);
     lv_obj_align(label_time, LV_ALIGN_CENTER, 0, 0);
 
-    /* right: battery percent + ring */
-    lv_obj_t *battery_group = lv_obj_create(bar);
-    lv_obj_set_size(battery_group, LV_SIZE_CONTENT, 20);
-    lv_obj_set_style_pad_all(battery_group, 0, 0);
-    lv_obj_set_style_border_width(battery_group, 0, 0);
-    lv_obj_set_style_bg_opa(battery_group, LV_OPA_TRANSP, 0);
-    lv_obj_set_flex_flow(battery_group, LV_FLEX_FLOW_ROW);
-    lv_obj_set_flex_align(battery_group, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
-    lv_obj_align(battery_group, LV_ALIGN_RIGHT_MID, 0, 0);
-
-    label_battery = lv_label_create(battery_group);
+    /* right: battery percent */
+    label_battery = lv_label_create(bar);
     lv_obj_set_style_text_font(label_battery, &lv_font_montserrat_14, 0);
     lv_obj_set_style_text_color(label_battery, lv_color_white(), 0);
+    lv_obj_align(label_battery, LV_ALIGN_RIGHT_MID, -36, 0);
 
-    arc_battery = lv_arc_create(battery_group);
+    /* right: battery ring, placed directly on bar (no flex wrapper) */
+    arc_battery = lv_arc_create(bar);
+    lv_obj_remove_style_all(arc_battery);
     lv_obj_set_size(arc_battery, 14, 14);
-    lv_arc_set_range(arc_battery, 0, 100);
-    lv_arc_set_bg_angles(arc_battery, 0, 360);
-    lv_arc_set_rotation(arc_battery, 270);
+    lv_obj_set_style_pad_all(arc_battery, 0, 0);
+    lv_obj_set_style_bg_opa(arc_battery, LV_OPA_TRANSP, 0);
+    lv_obj_set_style_border_width(arc_battery, 0, 0);
     lv_obj_set_style_arc_width(arc_battery, 2, LV_PART_MAIN);
     lv_obj_set_style_arc_width(arc_battery, 2, LV_PART_INDICATOR);
     lv_obj_set_style_arc_color(arc_battery, lv_color_hex(0x333333), LV_PART_MAIN);
     lv_obj_set_style_arc_color(arc_battery, lv_color_white(), LV_PART_INDICATOR);
+    lv_obj_set_style_arc_rounded(arc_battery, false, LV_PART_MAIN);
+    lv_obj_set_style_arc_rounded(arc_battery, false, LV_PART_INDICATOR);
     lv_obj_set_style_bg_opa(arc_battery, LV_OPA_TRANSP, LV_PART_KNOB);
-    lv_obj_set_style_pad_all(arc_battery, 0, 0);
+    lv_arc_set_range(arc_battery, 0, 100);
+    lv_arc_set_bg_angles(arc_battery, 0, 360);
+    lv_arc_set_rotation(arc_battery, 270);
+    lv_obj_align(arc_battery, LV_ALIGN_RIGHT_MID, -12, 0);
 
     status_bar_refresh_time();
     status_bar_refresh_battery();

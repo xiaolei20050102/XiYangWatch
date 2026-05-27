@@ -31,6 +31,8 @@ static int32_t       g_spoke_position;
 static lv_obj_t *g_old_page;
 static page_id_t g_old_page_id;
 static bool      g_in_transition;
+static uint32_t  g_transition_start_tick;
+#define TRANSITION_TIMEOUT_MS 500
 /* g_overlay_stack + g_overlay_depth 组成层叠栈，push时压入父页，pop时弹出 */
 
 /* ── spoke chain definitions ── */
@@ -106,6 +108,7 @@ static void page_manager_switch_to(page_id_t id, trans_dir_t dir)
     if (id == g_active_page) return;
 
     g_in_transition = true;
+    g_transition_start_tick = lv_tick_get();
     g_old_page = g_current_page;
     g_old_page_id = g_active_page;
 
@@ -305,10 +308,32 @@ void page_manager_pop(gesture_t g)
     g_state = (g_overlay_depth > 0) ? STATE_AT_OVERLAY : STATE_AT_HUB;
 }
 
+void page_manager_check_timeout(void)
+{
+    if (g_in_transition && lv_tick_elaps(g_transition_start_tick) > TRANSITION_TIMEOUT_MS) {
+        if (g_old_page) {
+            const page_t *old_def = pages_config_get(g_old_page_id);
+            if (old_def && old_def->destroy) old_def->destroy();
+            lv_obj_delete(g_old_page);
+            g_old_page = NULL;
+        }
+        if (g_current_page) {
+            lv_anim_delete(g_current_page, NULL);
+            lv_obj_set_style_translate_x(g_current_page, 0, 0);
+            lv_obj_set_style_translate_y(g_current_page, 0, 0);
+            lv_obj_invalidate(g_current_page);
+        }
+        g_in_transition = false;
+    }
+}
+
 void page_manager_update(void)
 {
     status_bar_refresh_time();
     status_bar_refresh_battery();
+
+    page_manager_check_timeout();
+
     if (g_in_transition) return;
     const page_t *p = pages_config_get(g_active_page);
     if (p && p->update) p->update();

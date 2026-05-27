@@ -18,6 +18,7 @@ typedef enum {
 } spoke_dir_t;
 
 void page_manager_init(void);
+void page_manager_check_timeout(void);
 void page_manager_go_home(void);
 void page_manager_go_spoke(spoke_dir_t dir);
 void page_manager_spoke_next(void);

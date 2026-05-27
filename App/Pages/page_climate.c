@@ -39,7 +39,7 @@ static lv_obj_t *create(lv_obj_t *parent)
     card_temp = lv_obj_create(root);
     lv_obj_set_size(card_temp, 200, 108);
     lv_obj_set_style_bg_color(card_temp, lv_color_hex(0x2A1100), 0);
-    lv_obj_set_style_bg_opa(card_temp, LV_OPA_50, 0);
+    lv_obj_set_style_bg_opa(card_temp, 89, 0);
     lv_obj_set_style_border_color(card_temp, lv_color_hex(0xFF6600), 0);
     lv_obj_set_style_border_width(card_temp, 1, 0);
     lv_obj_set_style_border_opa(card_temp, LV_OPA_COVER, 0);
@@ -72,7 +72,7 @@ static lv_obj_t *create(lv_obj_t *parent)
     card_humi = lv_obj_create(root);
     lv_obj_set_size(card_humi, 200, 108);
     lv_obj_set_style_bg_color(card_humi, lv_color_hex(0x001A26), 0);
-    lv_obj_set_style_bg_opa(card_humi, LV_OPA_50, 0);
+    lv_obj_set_style_bg_opa(card_humi, 89, 0);
     lv_obj_set_style_border_color(card_humi, lv_color_hex(0x00D2FF), 0);
     lv_obj_set_style_border_width(card_humi, 1, 0);
     lv_obj_set_style_border_opa(card_humi, LV_OPA_COVER, 0);
