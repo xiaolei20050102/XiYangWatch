@@ -129,11 +129,12 @@ static void page_manager_switch_to(page_id_t id, trans_dir_t dir)
     lv_anim_set_completed_cb(&a_exit, trans_complete_cb);
     lv_anim_start(&a_exit);
 
-    /* old page: fade to invisible (255→0, 280ms — 比翻译先结束，避免访问已删除对象) */
+    /* old page: fade to invisible (ease_out: 先快后慢, 280ms < exit 300ms) */
     lv_anim_init(&a_fade);
     lv_anim_set_var(&a_fade, g_old_page);
     lv_anim_set_values(&a_fade, LV_OPA_COVER, LV_OPA_TRANSP);
     lv_anim_set_exec_cb(&a_fade, trans_opa_cb);
+    lv_anim_set_path_cb(&a_fade, lv_anim_path_ease_out);
     lv_anim_set_duration(&a_fade, 280);
     lv_anim_start(&a_fade);
 }
