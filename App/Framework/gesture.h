@@ -18,5 +18,6 @@ typedef bool (*gesture_intercept_cb_t)(gesture_t g);
 void gesture_init(void);
 void gesture_feed(gesture_t g);
 void gesture_set_intercept(gesture_intercept_cb_t cb);
+bool gesture_was_recent(void);  /* true if a directional gesture fired within ~300ms */
 
 #endif

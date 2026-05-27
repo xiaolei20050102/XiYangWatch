@@ -1,4 +1,5 @@
 #include "page_manager.h"
+#include "status_bar.h"
 #include "lvgl.h"
 
 #define OVERLAY_STACK_MAX 8
@@ -6,6 +7,8 @@
 typedef enum {
     TRANS_FROM_RIGHT,
     TRANS_FROM_LEFT,
+    TRANS_FROM_BOTTOM,
+    TRANS_FADE,
 } trans_dir_t;
 
 /* 手指左滑 → 新页从右进；手指右滑 → 新页从左进 */
@@ -28,6 +31,7 @@ static int32_t       g_spoke_position;
 static lv_obj_t *g_old_page;
 static page_id_t g_old_page_id;
 static bool      g_in_transition;
+/* g_overlay_stack + g_overlay_depth 组成层叠栈，push时压入父页，pop时弹出 */
 
 /* ── spoke chain definitions ── */
 static page_id_t chain_health[] = { PAGE_ACTIVITY, PAGE_HEARTRATE };
@@ -48,6 +52,11 @@ static void trans_translate_cb(void *var, int32_t v)
     lv_obj_set_style_translate_x((lv_obj_t *)var, v, 0);
 }
 
+static void trans_translate_y_cb(void *var, int32_t v)
+{
+    lv_obj_set_style_translate_y((lv_obj_t *)var, v, 0);
+}
+
 static void trans_opa_cb(void *var, int32_t v)
 {
     lv_obj_set_style_opa((lv_obj_t *)var, v, 0);
@@ -57,6 +66,7 @@ static void trans_entrance_done_cb(lv_anim_t *a)
 {
     if (!g_current_page) return;
     lv_obj_set_style_translate_x(g_current_page, 0, 0);
+    lv_obj_set_style_translate_y(g_current_page, 0, 0);
     lv_obj_invalidate(g_current_page);
 }
 
@@ -70,6 +80,7 @@ static void trans_complete_cb(lv_anim_t *a)
     g_in_transition = false;
     if (g_current_page) {
         lv_obj_set_style_translate_x(g_current_page, 0, 0);
+        lv_obj_set_style_translate_y(g_current_page, 0, 0);
         lv_obj_invalidate(g_current_page);
     }
 }
@@ -86,6 +97,9 @@ static void page_manager_switch_to(page_id_t id, trans_dir_t dir)
         g_current_page = p->create(lv_screen_active());
         lv_obj_remove_flag(g_current_page, LV_OBJ_FLAG_SCROLLABLE);
         g_active_page = id;
+        status_bar_set_visible(id != PAGE_WATCHFACE);
+        status_bar_set_title(p->name);
+        status_bar_bring_to_front();
         return;
     }
 
@@ -100,43 +114,85 @@ static void page_manager_switch_to(page_id_t id, trans_dir_t dir)
     g_current_page = p->create(lv_screen_active());
     lv_obj_remove_flag(g_current_page, LV_OBJ_FLAG_SCROLLABLE);
     g_active_page = id;
+    status_bar_set_visible(id != PAGE_WATCHFACE);
+    status_bar_set_title(p->name);
+    status_bar_bring_to_front();
 
-    int32_t new_start  = (dir == TRANS_FROM_RIGHT) ?  240 : -240;
-    int32_t old_end    = (dir == TRANS_FROM_RIGHT) ? -240 :  240;
+    bool is_bottom = (dir == TRANS_FROM_BOTTOM);
+    bool is_fade   = (dir == TRANS_FADE);
+    int32_t new_start  = is_bottom ? 280 : ((dir == TRANS_FROM_RIGHT) ?  240 : -240);
+    int32_t old_end    = is_bottom ? 0   : ((dir == TRANS_FROM_RIGHT) ? -240 :  240);
 
     /* position new page offscreen */
-    lv_obj_set_style_translate_x(g_current_page, new_start, 0);
+    if (is_bottom)
+        lv_obj_set_style_translate_y(g_current_page, new_start, 0);
+    else if (!is_fade)
+        lv_obj_set_style_translate_x(g_current_page, new_start, 0);
 
     lv_anim_t a_entrance, a_exit, a_fade;
 
-    /* new page: springy overshoot entrance (280ms) */
-    lv_anim_init(&a_entrance);
-    lv_anim_set_var(&a_entrance, g_current_page);
-    lv_anim_set_values(&a_entrance, new_start, 0);
-    lv_anim_set_exec_cb(&a_entrance, trans_translate_cb);
-    lv_anim_set_duration(&a_entrance, 280);
-    lv_anim_set_path_cb(&a_entrance, lv_anim_path_overshoot);
-    lv_anim_set_completed_cb(&a_entrance, trans_entrance_done_cb);
-    lv_anim_start(&a_entrance);
+    if (is_fade) {
+        /* fade-only: new page fades in, no translate */
+        lv_obj_set_style_opa(g_current_page, LV_OPA_TRANSP, 0);
 
-    /* old page: ease_in — 先慢后快，像被拽住才松开 (300ms) */
-    lv_anim_init(&a_exit);
-    lv_anim_set_var(&a_exit, g_old_page);
-    lv_anim_set_values(&a_exit, 0, old_end);
-    lv_anim_set_exec_cb(&a_exit, trans_translate_cb);
-    lv_anim_set_path_cb(&a_exit, lv_anim_path_ease_in);
-    lv_anim_set_duration(&a_exit, 300);
-    lv_anim_set_completed_cb(&a_exit, trans_complete_cb);
-    lv_anim_start(&a_exit);
+        lv_anim_init(&a_entrance);
+        lv_anim_set_var(&a_entrance, g_current_page);
+        lv_anim_set_values(&a_entrance, LV_OPA_TRANSP, LV_OPA_COVER);
+        lv_anim_set_exec_cb(&a_entrance, trans_opa_cb);
+        lv_anim_set_duration(&a_entrance, 260);
+        lv_anim_set_path_cb(&a_entrance, lv_anim_path_ease_out);
+        lv_anim_set_completed_cb(&a_entrance, trans_entrance_done_cb);
+        lv_anim_start(&a_entrance);
 
-    /* old page: fade to invisible (ease_out: 先快后慢, 280ms < exit 300ms) */
-    lv_anim_init(&a_fade);
-    lv_anim_set_var(&a_fade, g_old_page);
-    lv_anim_set_values(&a_fade, LV_OPA_COVER, LV_OPA_TRANSP);
-    lv_anim_set_exec_cb(&a_fade, trans_opa_cb);
-    lv_anim_set_path_cb(&a_fade, lv_anim_path_ease_out);
-    lv_anim_set_duration(&a_fade, 280);
-    lv_anim_start(&a_fade);
+        /* old page: fade out in place */
+        lv_anim_init(&a_fade);
+        lv_anim_set_var(&a_fade, g_old_page);
+        lv_anim_set_values(&a_fade, LV_OPA_COVER, LV_OPA_TRANSP);
+        lv_anim_set_exec_cb(&a_fade, trans_opa_cb);
+        lv_anim_set_path_cb(&a_fade, lv_anim_path_ease_out);
+        lv_anim_set_duration(&a_fade, 260);
+        lv_anim_set_completed_cb(&a_fade, trans_complete_cb);
+        lv_anim_start(&a_fade);
+    } else {
+        /* new page: springy overshoot entrance (280ms) */
+        lv_anim_init(&a_entrance);
+        lv_anim_set_var(&a_entrance, g_current_page);
+        lv_anim_set_values(&a_entrance, new_start, 0);
+        lv_anim_set_exec_cb(&a_entrance, is_bottom ? trans_translate_y_cb : trans_translate_cb);
+        lv_anim_set_duration(&a_entrance, 280);
+        lv_anim_set_path_cb(&a_entrance, lv_anim_path_overshoot);
+        lv_anim_set_completed_cb(&a_entrance, trans_entrance_done_cb);
+        lv_anim_start(&a_entrance);
+
+        /* old page: translate + fade out */
+        if (is_bottom) {
+            lv_anim_init(&a_fade);
+            lv_anim_set_var(&a_fade, g_old_page);
+            lv_anim_set_values(&a_fade, LV_OPA_COVER, LV_OPA_TRANSP);
+            lv_anim_set_exec_cb(&a_fade, trans_opa_cb);
+            lv_anim_set_path_cb(&a_fade, lv_anim_path_ease_out);
+            lv_anim_set_duration(&a_fade, 280);
+            lv_anim_set_completed_cb(&a_fade, trans_complete_cb);
+            lv_anim_start(&a_fade);
+        } else {
+            lv_anim_init(&a_exit);
+            lv_anim_set_var(&a_exit, g_old_page);
+            lv_anim_set_values(&a_exit, 0, old_end);
+            lv_anim_set_exec_cb(&a_exit, trans_translate_cb);
+            lv_anim_set_path_cb(&a_exit, lv_anim_path_ease_in);
+            lv_anim_set_duration(&a_exit, 300);
+            lv_anim_set_completed_cb(&a_exit, trans_complete_cb);
+            lv_anim_start(&a_exit);
+
+            lv_anim_init(&a_fade);
+            lv_anim_set_var(&a_fade, g_old_page);
+            lv_anim_set_values(&a_fade, LV_OPA_COVER, LV_OPA_TRANSP);
+            lv_anim_set_exec_cb(&a_fade, trans_opa_cb);
+            lv_anim_set_path_cb(&a_fade, lv_anim_path_ease_out);
+            lv_anim_set_duration(&a_fade, 280);
+            lv_anim_start(&a_fade);
+        }
+    }
 }
 
 /* ── public API ── */
@@ -158,11 +214,13 @@ void page_manager_init(void)
         g_current_page = p->create(lv_screen_active());
         lv_obj_remove_flag(g_current_page, LV_OBJ_FLAG_SCROLLABLE);
     }
+
+    status_bar_create(lv_screen_active());
 }
 
 void page_manager_go_home(void)
 {
-    if (g_in_transition) return;  /* 动画中，拒绝新的切换请求 */
+    if (g_in_transition) return;
     page_manager_switch_to(PAGE_WATCHFACE, trans_backward(g_entry_dir));
     g_state = STATE_AT_HUB;
     g_spoke_position = 0;
@@ -170,7 +228,7 @@ void page_manager_go_home(void)
 
 void page_manager_go_spoke(spoke_dir_t dir)
 {
-    if (g_in_transition) return;  /* 动画中，拒绝新的切换请求 */
+    if (g_in_transition) return;
     if (g_state != STATE_AT_HUB) return;
 
     int32_t count;
@@ -185,7 +243,7 @@ void page_manager_go_spoke(spoke_dir_t dir)
 
 void page_manager_spoke_next(void)
 {
-    if (g_in_transition) return;  /* 动画中，拒绝新的切换请求 */
+    if (g_in_transition) return;
     int32_t count;
     page_id_t *chain = page_manager_get_chain(g_entry_dir, &count);
     if (!chain || g_spoke_position + 1 >= count) return;
@@ -196,7 +254,7 @@ void page_manager_spoke_next(void)
 
 void page_manager_spoke_prev(void)
 {
-    if (g_in_transition) return;  /* 动画中，拒绝新的切换请求 */
+    if (g_in_transition) return;
     if (g_spoke_position > 0) {
         g_spoke_position--;
         int32_t count;
@@ -209,18 +267,50 @@ void page_manager_spoke_prev(void)
 
 void page_manager_push(page_id_t id)
 {
-    if (g_in_transition) return;  /* 动画中，拒绝新的切换请求 */
+    if (g_in_transition) return;
+    if (g_overlay_depth >= OVERLAY_STACK_MAX) return;
+    g_overlay_stack[g_overlay_depth++] = g_active_page;
     page_manager_switch_to(id, TRANS_FROM_RIGHT);
     g_state = STATE_AT_OVERLAY;
 }
 
-void page_manager_pop(void)
+void page_manager_push_up(page_id_t id)
 {
-    page_manager_go_home();
+    if (g_in_transition) return;
+    if (g_overlay_depth >= OVERLAY_STACK_MAX) return;
+    g_overlay_stack[g_overlay_depth++] = g_active_page;
+    page_manager_switch_to(id, TRANS_FROM_BOTTOM);
+    g_state = STATE_AT_OVERLAY;
+}
+
+void page_manager_push_fade(page_id_t id)
+{
+    if (g_in_transition) return;
+    if (g_overlay_depth >= OVERLAY_STACK_MAX) return;
+    g_overlay_stack[g_overlay_depth++] = g_active_page;
+    page_manager_switch_to(id, TRANS_FADE);
+    g_state = STATE_AT_OVERLAY;
+}
+
+void page_manager_pop(gesture_t g)
+{
+    if (g_in_transition) return;
+    if (g_overlay_depth == 0) return;
+    g_overlay_depth--;
+    /* 退回 overlay（如菜单）→ 原地淡入淡出；退回 hub → 顺着手势滑动 */
+    trans_dir_t dir;
+    if (g_overlay_depth > 0)
+        dir = TRANS_FADE;
+    else
+        dir = (g == GESTURE_LEFT) ? TRANS_FROM_RIGHT : TRANS_FROM_LEFT;
+    page_manager_switch_to(g_overlay_stack[g_overlay_depth], dir);
+    g_state = (g_overlay_depth > 0) ? STATE_AT_OVERLAY : STATE_AT_HUB;
 }
 
 void page_manager_update(void)
 {
+    status_bar_refresh_time();
+    status_bar_refresh_battery();
     if (g_in_transition) return;
     const page_t *p = pages_config_get(g_active_page);
     if (p && p->update) p->update();

@@ -29,6 +29,7 @@ static lv_obj_t *create(lv_obj_t *parent)
 {
     root = lv_obj_create(parent);
     lv_obj_set_size(root, 240, 280);
+    lv_obj_set_y(root, 20);
     lv_obj_set_style_pad_all(root, 0, 0);
     lv_obj_set_style_border_width(root, 0, 0);
     lv_obj_set_style_bg_color(root, lv_color_black(), 0);
@@ -36,9 +37,9 @@ static lv_obj_t *create(lv_obj_t *parent)
 
     /* ==================== 温度卡片 (上方) ==================== */
     card_temp = lv_obj_create(root);
-    lv_obj_set_size(card_temp, 220, 120);
+    lv_obj_set_size(card_temp, 200, 108);
     lv_obj_set_style_bg_color(card_temp, lv_color_hex(0x2A1100), 0);
-    lv_obj_set_style_bg_opa(card_temp, LV_OPA_COVER, 0);
+    lv_obj_set_style_bg_opa(card_temp, LV_OPA_50, 0);
     lv_obj_set_style_border_color(card_temp, lv_color_hex(0xFF6600), 0);
     lv_obj_set_style_border_width(card_temp, 1, 0);
     lv_obj_set_style_border_opa(card_temp, LV_OPA_COVER, 0);
@@ -69,15 +70,15 @@ static lv_obj_t *create(lv_obj_t *parent)
 
     /* ==================== 湿度卡片 (下方) ==================== */
     card_humi = lv_obj_create(root);
-    lv_obj_set_size(card_humi, 220, 120);
+    lv_obj_set_size(card_humi, 200, 108);
     lv_obj_set_style_bg_color(card_humi, lv_color_hex(0x001A26), 0);
-    lv_obj_set_style_bg_opa(card_humi, LV_OPA_COVER, 0);
+    lv_obj_set_style_bg_opa(card_humi, LV_OPA_50, 0);
     lv_obj_set_style_border_color(card_humi, lv_color_hex(0x00D2FF), 0);
     lv_obj_set_style_border_width(card_humi, 1, 0);
     lv_obj_set_style_border_opa(card_humi, LV_OPA_COVER, 0);
     lv_obj_set_style_radius(card_humi, 20, 0);
     lv_obj_set_style_pad_all(card_humi, 0, 0);
-    lv_obj_align(card_humi, LV_ALIGN_TOP_MID, 0, 145);
+    lv_obj_align(card_humi, LV_ALIGN_TOP_MID, 0, 135);
 
     lv_obj_t *humi_icon = lv_image_create(card_humi);
     lv_image_set_src(humi_icon, &humidity_32);

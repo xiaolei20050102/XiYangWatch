@@ -2,6 +2,7 @@
 #define PAGE_MANAGER_H
 
 #include "../Pages/pages_config.h"
+#include "gesture.h"
 
 typedef enum {
     STATE_AT_HUB,
@@ -22,7 +23,9 @@ void page_manager_go_spoke(spoke_dir_t dir);
 void page_manager_spoke_next(void);
 void page_manager_spoke_prev(void);
 void page_manager_push(page_id_t id);
-void page_manager_pop(void);
+void page_manager_push_up(page_id_t id);
+void page_manager_push_fade(page_id_t id);
+void page_manager_pop(gesture_t g);
 void page_manager_update(void);
 page_state_t page_manager_get_state(void);
 spoke_dir_t page_manager_get_entry_dir(void);

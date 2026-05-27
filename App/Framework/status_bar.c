@@ -1,0 +1,98 @@
+#include "status_bar.h"
+#include "../Data/data_provider.h"
+
+static lv_obj_t *bar;
+static lv_obj_t *label_title;
+static lv_obj_t *label_time;
+static lv_obj_t *label_battery;
+static lv_obj_t *arc_battery;
+
+void status_bar_create(lv_obj_t *parent)
+{
+    bar = lv_obj_create(parent);
+    lv_obj_set_size(bar, 240, 20);
+    lv_obj_set_style_pad_all(bar, 0, 0);
+    lv_obj_set_style_border_width(bar, 0, 0);
+    lv_obj_set_style_radius(bar, 0, 0);
+    lv_obj_set_style_bg_opa(bar, LV_OPA_TRANSP, 0);
+    lv_obj_align(bar, LV_ALIGN_TOP_MID, 0, 0);
+
+    label_title = lv_label_create(bar);
+    lv_obj_set_style_text_font(label_title, &lv_font_montserrat_14, 0);
+    lv_obj_set_style_text_color(label_title, lv_color_white(), 0);
+    lv_obj_align(label_title, LV_ALIGN_LEFT_MID, 8, 0);
+
+    label_time = lv_label_create(bar);
+    lv_obj_set_style_text_font(label_time, &lv_font_montserrat_14, 0);
+    lv_obj_set_style_text_color(label_time, lv_color_white(), 0);
+    lv_obj_align(label_time, LV_ALIGN_CENTER, 0, 0);
+
+    /* right side: battery percent + ring */
+    lv_obj_t *battery_group = lv_obj_create(bar);
+    lv_obj_set_size(battery_group, LV_SIZE_CONTENT, 20);
+    lv_obj_set_style_pad_all(battery_group, 0, 0);
+    lv_obj_set_style_border_width(battery_group, 0, 0);
+    lv_obj_set_style_bg_opa(battery_group, LV_OPA_TRANSP, 0);
+    lv_obj_set_flex_flow(battery_group, LV_FLEX_FLOW_ROW);
+    lv_obj_set_flex_align(battery_group, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+    lv_obj_align(battery_group, LV_ALIGN_RIGHT_MID, -8, 0);
+
+    label_battery = lv_label_create(battery_group);
+    lv_obj_set_style_text_font(label_battery, &lv_font_montserrat_14, 0);
+    lv_obj_set_style_text_color(label_battery, lv_color_white(), 0);
+
+    arc_battery = lv_arc_create(battery_group);
+    lv_obj_set_size(arc_battery, 14, 14);
+    lv_arc_set_range(arc_battery, 0, 100);
+    lv_arc_set_bg_angles(arc_battery, 0, 360);
+    lv_arc_set_rotation(arc_battery, 270);
+    lv_obj_set_style_arc_width(arc_battery, 2, LV_PART_MAIN);
+    lv_obj_set_style_arc_width(arc_battery, 2, LV_PART_INDICATOR);
+    lv_obj_set_style_arc_color(arc_battery, lv_color_hex(0x333333), LV_PART_MAIN);
+    lv_obj_set_style_arc_color(arc_battery, lv_color_white(), LV_PART_INDICATOR);
+    lv_obj_set_style_bg_opa(arc_battery, LV_OPA_TRANSP, LV_PART_KNOB);
+    lv_obj_set_style_pad_all(arc_battery, 0, 0);
+
+    status_bar_refresh_time();
+    status_bar_refresh_battery();
+}
+
+void status_bar_bring_to_front(void)
+{
+    if (bar) lv_obj_move_foreground(bar);
+}
+
+void status_bar_set_visible(bool visible)
+{
+    if (!bar) return;
+    if (visible) {
+        lv_obj_remove_flag(bar, LV_OBJ_FLAG_HIDDEN);
+    } else {
+        lv_obj_add_flag(bar, LV_OBJ_FLAG_HIDDEN);
+    }
+}
+
+void status_bar_set_title(const char *title)
+{
+    if (!label_title) return;
+    if (!title) { lv_label_set_text(label_title, ""); return; }
+    char buf[32];
+    lv_snprintf(buf, sizeof(buf), "%s", title);
+    if (buf[0] >= 'a' && buf[0] <= 'z') buf[0] -= 32;
+    lv_label_set_text(label_title, buf);
+}
+
+void status_bar_refresh_time(void)
+{
+    if (!label_time) return;
+    watch_time_t t;
+    watch_data_get_time(&t);
+    lv_label_set_text_fmt(label_time, "%02d:%02d", t.hour, t.min);
+}
+
+void status_bar_refresh_battery(void)
+{
+    int32_t pct = watch_data_get_battery();
+    if (label_battery) lv_label_set_text_fmt(label_battery, "%d%%", (int)pct);
+    if (arc_battery) lv_arc_set_value(arc_battery, pct);
+}

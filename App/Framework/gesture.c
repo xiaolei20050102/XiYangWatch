@@ -16,6 +16,11 @@ void gesture_set_intercept(gesture_intercept_cb_t cb)
     g_intercept = cb;
 }
 
+bool gesture_was_recent(void)
+{
+    return (lv_tick_get() - g_last_gesture_tick) < 300;
+}
+
 void gesture_feed(gesture_t g)
 {
     if (g == GESTURE_NONE) {
@@ -42,7 +47,7 @@ void gesture_feed(gesture_t g)
     case STATE_AT_HUB:
         if (g == GESTURE_LEFT)       page_manager_go_spoke(SPOKE_LEFT);
         else if (g == GESTURE_RIGHT) page_manager_go_spoke(SPOKE_RIGHT);
-        else if (g == GESTURE_UP)    page_manager_go_spoke(SPOKE_UP);
+        else if (g == GESTURE_UP)    page_manager_push_up(PAGE_MENU);
         else if (g == GESTURE_DOWN)  page_manager_go_spoke(SPOKE_DOWN);
         else if (g == GESTURE_LONGPRESS) page_manager_push(PAGE_WATCHFACE_SEL);
         break;
@@ -70,7 +75,7 @@ void gesture_feed(gesture_t g)
 
     case STATE_AT_OVERLAY:
         if (g == GESTURE_LEFT || g == GESTURE_RIGHT)
-            page_manager_pop();
+            page_manager_pop(g);
         break;
     }
 }

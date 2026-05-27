@@ -27,6 +27,16 @@ typedef enum {
     PAGE_FIND_PHONE,
     PAGE_ALTIMETER,
     PAGE_CLIMATE,
+    /* Menu app sub-pages (empty stubs, not implemented yet) */
+    PAGE_APP_ACTIVITY,
+    PAGE_APP_HEALTH,
+    PAGE_APP_ENVIRONMENT,
+    PAGE_APP_FOCUS,
+    PAGE_APP_STOPWATCH,
+    PAGE_APP_ALARM,
+    PAGE_APP_CALCULATOR,
+    PAGE_APP_FLASHLIGHT,
+    PAGE_APP_SETTINGS,
     PAGE_COUNT
 } page_id_t;
 

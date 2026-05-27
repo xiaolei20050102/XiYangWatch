@@ -154,10 +154,7 @@ void StartLvglTask(void *argument)
 
   for(;;)
   {
-    lv_timer_handler();
-    app_loop();
-
-    /* 触摸手势 → 页面导航 */
+    /* 触摸手势 → 页面导航（必须在 lv_timer_handler 之前，否则 LVGL click 事件会先于手势触发） */
     uint8_t raw = CST816_GetGesture();
     gesture_t g = GESTURE_NONE;
     switch (raw) {
@@ -169,6 +166,9 @@ void StartLvglTask(void *argument)
         case 0x0C: g = GESTURE_LONGPRESS; break;
     }
     gesture_feed(g);
+
+    lv_timer_handler();
+    app_loop();
 
     vTaskDelay(pdMS_TO_TICKS(5));
   }

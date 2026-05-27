@@ -24,6 +24,16 @@ extern const page_t page_bluetooth;
 extern const page_t page_find_phone;
 extern const page_t page_altimeter;
 extern const page_t page_climate;
+/* Menu app stubs */
+extern const page_t page_app_activity;
+extern const page_t page_app_health;
+extern const page_t page_app_environment;
+extern const page_t page_app_focus;
+extern const page_t page_app_stopwatch;
+extern const page_t page_app_alarm;
+extern const page_t page_app_calculator;
+extern const page_t page_app_flashlight;
+extern const page_t page_app_settings;
 
 const page_t *g_pages[PAGE_COUNT] = {
     [PAGE_WATCHFACE]       = &page_watchface,
@@ -46,6 +56,15 @@ const page_t *g_pages[PAGE_COUNT] = {
     [PAGE_FIND_PHONE]      = &page_find_phone,
     [PAGE_ALTIMETER]       = &page_altimeter,
     [PAGE_CLIMATE]         = &page_climate,
+    [PAGE_APP_ACTIVITY]    = &page_app_activity,
+    [PAGE_APP_HEALTH]      = &page_app_health,
+    [PAGE_APP_ENVIRONMENT] = &page_app_environment,
+    [PAGE_APP_FOCUS]       = &page_app_focus,
+    [PAGE_APP_STOPWATCH]   = &page_app_stopwatch,
+    [PAGE_APP_ALARM]       = &page_app_alarm,
+    [PAGE_APP_CALCULATOR]  = &page_app_calculator,
+    [PAGE_APP_FLASHLIGHT]  = &page_app_flashlight,
+    [PAGE_APP_SETTINGS]    = &page_app_settings,
 };
 
 const page_t *pages_config_get(page_id_t id)
