@@ -19,7 +19,7 @@ void gesture_set_intercept(gesture_intercept_cb_t cb)
 void gesture_feed(gesture_t g)
 {
     if (g == GESTURE_NONE) {
-        if (lv_tick_get() - g_last_gesture_tick > 500)
+        if (lv_tick_get() - g_last_gesture_tick > 200)
             g_armed = true;
         return;
     }
