@@ -34,7 +34,7 @@
 #define LCD_PORT_DC   GPIOB
 #define LCD_PIN_RST   GPIO_PIN_12
 #define LCD_PORT_RST  GPIOB
-#define LCD_SPI       &hspi2
+#define LCD_SPI       &hspi1
 
 /* ========================== 面板参数 ========================== */
 

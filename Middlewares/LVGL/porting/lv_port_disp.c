@@ -51,7 +51,7 @@
  *   忙等。保证同一时刻最多一个 DMA 传输在跑。
  *
  * @par 内存账本（STM32F411CE, 128KB SRAM）
- *   buf_1 + buf_2 = 240×20×2 ×2 = 19.2 KB
+ *   buf_1 + buf_2 = 240×35×2 ×2 = 32.8 KB
  */
 
  /*Copy this file as "lv_port_disp.c" and set this value to "1" to enable content*/
@@ -98,10 +98,10 @@ void lv_port_disp_init(void)
     lv_display_set_color_format(my_disp, LV_COLOR_FORMAT_RGB565_SWAPPED);
     lv_display_set_flush_cb(my_disp, disp_flush);
 
-    /* 双缓冲：buf_1 和 buf_2 各 20 行≈9.6KB，LVGL 内部自动乒乓轮换 */
+    /* 双缓冲：buf_1 和 buf_2 各 35 行≈16.4KB，满屏 8 次 DMA */
     LV_ATTRIBUTE_MEM_ALIGN
-    static uint8_t buf_1[MY_DISP_HOR_RES * 20 * BYTE_PER_PIXEL];
-    static uint8_t buf_2[MY_DISP_HOR_RES * 20 * BYTE_PER_PIXEL];
+    static uint8_t buf_1[MY_DISP_HOR_RES * 35 * BYTE_PER_PIXEL];
+    static uint8_t buf_2[MY_DISP_HOR_RES * 35 * BYTE_PER_PIXEL];
     lv_display_set_buffers(my_disp, buf_1, buf_2, sizeof(buf_1),
                            LV_DISPLAY_RENDER_MODE_PARTIAL);
 }
