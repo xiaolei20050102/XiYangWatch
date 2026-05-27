@@ -17,6 +17,4 @@ const page_t page_app_environment = { "environment", PAGE_TYPE_OVERLAY, empty_cr
 const page_t page_app_focus       = { "focus",       PAGE_TYPE_OVERLAY, empty_create, NULL, NULL };
 const page_t page_app_stopwatch   = { "stopwatch",   PAGE_TYPE_OVERLAY, empty_create, NULL, NULL };
 const page_t page_app_alarm       = { "alarm",       PAGE_TYPE_OVERLAY, empty_create, NULL, NULL };
-const page_t page_app_calculator  = { "calculator",  PAGE_TYPE_OVERLAY, empty_create, NULL, NULL };
-const page_t page_app_flashlight  = { "flashlight",  PAGE_TYPE_OVERLAY, empty_create, NULL, NULL };
 const page_t page_app_settings    = { "settings",    PAGE_TYPE_OVERLAY, empty_create, NULL, NULL };

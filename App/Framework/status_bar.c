@@ -2,7 +2,6 @@
 #include "../Data/data_provider.h"
 
 static lv_obj_t *bar;
-static lv_obj_t *label_title;
 static lv_obj_t *label_time;
 static lv_obj_t *label_battery;
 static lv_obj_t *arc_battery;
@@ -12,22 +11,19 @@ void status_bar_create(lv_obj_t *parent)
     bar = lv_obj_create(parent);
     lv_obj_set_size(bar, 240, 20);
     lv_obj_set_style_pad_all(bar, 0, 0);
+    lv_obj_set_style_pad_hor(bar, 14, 0);
     lv_obj_set_style_border_width(bar, 0, 0);
     lv_obj_set_style_radius(bar, 0, 0);
     lv_obj_set_style_bg_opa(bar, LV_OPA_TRANSP, 0);
     lv_obj_align(bar, LV_ALIGN_TOP_MID, 0, 0);
 
-    label_title = lv_label_create(bar);
-    lv_obj_set_style_text_font(label_title, &lv_font_montserrat_14, 0);
-    lv_obj_set_style_text_color(label_title, lv_color_white(), 0);
-    lv_obj_align(label_title, LV_ALIGN_LEFT_MID, 8, 0);
-
+    /* center: time */
     label_time = lv_label_create(bar);
     lv_obj_set_style_text_font(label_time, &lv_font_montserrat_14, 0);
     lv_obj_set_style_text_color(label_time, lv_color_white(), 0);
     lv_obj_align(label_time, LV_ALIGN_CENTER, 0, 0);
 
-    /* right side: battery percent + ring */
+    /* right: battery percent + ring */
     lv_obj_t *battery_group = lv_obj_create(bar);
     lv_obj_set_size(battery_group, LV_SIZE_CONTENT, 20);
     lv_obj_set_style_pad_all(battery_group, 0, 0);
@@ -35,7 +31,7 @@ void status_bar_create(lv_obj_t *parent)
     lv_obj_set_style_bg_opa(battery_group, LV_OPA_TRANSP, 0);
     lv_obj_set_flex_flow(battery_group, LV_FLEX_FLOW_ROW);
     lv_obj_set_flex_align(battery_group, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
-    lv_obj_align(battery_group, LV_ALIGN_RIGHT_MID, -8, 0);
+    lv_obj_align(battery_group, LV_ALIGN_RIGHT_MID, 0, 0);
 
     label_battery = lv_label_create(battery_group);
     lv_obj_set_style_text_font(label_battery, &lv_font_montserrat_14, 0);
@@ -70,16 +66,6 @@ void status_bar_set_visible(bool visible)
     } else {
         lv_obj_add_flag(bar, LV_OBJ_FLAG_HIDDEN);
     }
-}
-
-void status_bar_set_title(const char *title)
-{
-    if (!label_title) return;
-    if (!title) { lv_label_set_text(label_title, ""); return; }
-    char buf[32];
-    lv_snprintf(buf, sizeof(buf), "%s", title);
-    if (buf[0] >= 'a' && buf[0] <= 'z') buf[0] -= 32;
-    lv_label_set_text(label_title, buf);
 }
 
 void status_bar_refresh_time(void)

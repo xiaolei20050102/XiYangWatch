@@ -98,7 +98,6 @@ static void page_manager_switch_to(page_id_t id, trans_dir_t dir)
         lv_obj_remove_flag(g_current_page, LV_OBJ_FLAG_SCROLLABLE);
         g_active_page = id;
         status_bar_set_visible(id != PAGE_WATCHFACE);
-        status_bar_set_title(p->name);
         status_bar_bring_to_front();
         return;
     }
@@ -115,7 +114,6 @@ static void page_manager_switch_to(page_id_t id, trans_dir_t dir)
     lv_obj_remove_flag(g_current_page, LV_OBJ_FLAG_SCROLLABLE);
     g_active_page = id;
     status_bar_set_visible(id != PAGE_WATCHFACE);
-    status_bar_set_title(p->name);
     status_bar_bring_to_front();
 
     bool is_bottom = (dir == TRANS_FROM_BOTTOM);
