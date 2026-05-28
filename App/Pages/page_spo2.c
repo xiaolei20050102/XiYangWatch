@@ -13,6 +13,12 @@ static lv_obj_t *create(lv_obj_t *parent)
 
     /* TODO: Phase 2 — 测量按钮 + 结果 + 历史入口 */
 
+    lv_obj_t *label_shadow = lv_label_create(root);
+    lv_label_set_text(label_shadow, "SpO2\n\nPhase 2");
+    lv_obj_set_style_text_color(label_shadow, lv_color_black(), 0);
+    lv_obj_set_style_text_opa(label_shadow, LV_OPA_50, 0);
+    lv_obj_align(label_shadow, LV_ALIGN_CENTER, 1, 1);
+
     lv_obj_t *label = lv_label_create(root);
     lv_label_set_text(label, "SpO2\n\nPhase 2");
     lv_obj_center(label);

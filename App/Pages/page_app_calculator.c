@@ -269,7 +269,7 @@ static lv_obj_t *create(lv_obj_t *parent)
     lv_obj_set_size(root, 240, 280);
     lv_obj_set_style_pad_all(root, 0, 0);
     lv_obj_set_style_border_width(root, 0, 0);
-    lv_obj_set_style_bg_color(root, lv_color_hex(0x080808), 0);
+    lv_obj_set_style_bg_color(root, lv_color_white(), 0);
     lv_obj_set_style_bg_opa(root, LV_OPA_COVER, 0);
     lv_obj_remove_flag(root, LV_OBJ_FLAG_SCROLLABLE);
 
@@ -286,7 +286,7 @@ static lv_obj_t *create(lv_obj_t *parent)
 
     display = lv_label_create(disp_cont);
     lv_obj_set_style_text_font(display, &lv_font_montserrat_20, 0);
-    lv_obj_set_style_text_color(display, lv_color_hex(0xF0F0F0), 0);
+    lv_obj_set_style_text_color(display, lv_color_black(), 0);
     lv_obj_set_width(display, LV_SIZE_CONTENT);
 
     /* colors */

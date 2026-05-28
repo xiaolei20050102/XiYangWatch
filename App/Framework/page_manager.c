@@ -1,5 +1,6 @@
 #include "page_manager.h"
 #include "status_bar.h"
+#include "wallpaper.h"
 #include "lvgl.h"
 
 #define OVERLAY_STACK_MAX 8
@@ -23,6 +24,7 @@ static page_state_t  g_state;
 static page_id_t     g_overlay_stack[OVERLAY_STACK_MAX];
 static int32_t       g_overlay_depth;
 static lv_obj_t     *g_current_page;
+static lv_obj_t     *g_wallpaper;
 static page_id_t     g_active_page;
 static spoke_dir_t   g_entry_dir;
 static int32_t       g_spoke_position;
@@ -80,6 +82,12 @@ static void trans_complete_cb(lv_anim_t *a)
     lv_obj_delete(g_old_page);
     g_old_page = NULL;
     g_in_transition = false;
+
+    /* hide wallpaper after transition if new page is opaque overlay */
+    const page_t *cur = pages_config_get(g_active_page);
+    if (cur && cur->type == PAGE_TYPE_OVERLAY)
+        lv_obj_add_flag(g_wallpaper, LV_OBJ_FLAG_HIDDEN);
+
     if (g_current_page) {
         lv_obj_set_style_translate_x(g_current_page, 0, 0);
         lv_obj_set_style_translate_y(g_current_page, 0, 0);
@@ -118,6 +126,9 @@ static void page_manager_switch_to(page_id_t id, trans_dir_t dir)
     g_active_page = id;
     status_bar_set_visible(id != PAGE_WATCHFACE);
     status_bar_bring_to_front();
+
+    /* ensure wallpaper visible during transition (hide after animation completes if needed) */
+    lv_obj_remove_flag(g_wallpaper, LV_OBJ_FLAG_HIDDEN);
 
     bool is_bottom = (dir == TRANS_FROM_BOTTOM);
     bool is_fade   = (dir == TRANS_FADE);
@@ -205,10 +216,14 @@ void page_manager_init(void)
     g_spoke_position = 0;
     g_in_transition = false;
 
-    /* 屏幕默认背景设为黑色，避免页面切换过渡时透出白底 */
+    /* 屏幕背景：壁纸图片 + 黑色底色兜底 */
     lv_obj_set_style_bg_color(lv_screen_active(), lv_color_black(), 0);
     lv_obj_set_style_bg_opa(lv_screen_active(), LV_OPA_COVER, 0);
     lv_obj_remove_flag(lv_screen_active(), LV_OBJ_FLAG_SCROLLABLE);
+
+    g_wallpaper = lv_image_create(lv_screen_active());
+    lv_image_set_src(g_wallpaper, &wallpaper_img);
+    lv_obj_set_pos(g_wallpaper, 0, 0);
 
     const page_t *p = pages_config_get(PAGE_WATCHFACE);
     if (p && p->create) {
@@ -329,8 +344,18 @@ void page_manager_check_timeout(void)
 
 void page_manager_update(void)
 {
-    status_bar_refresh_time();
-    status_bar_refresh_battery();
+    static uint32_t last_time_tick = 0;
+    static uint32_t last_batt_tick = 0;
+    uint32_t now = lv_tick_get();
+
+    if (lv_tick_elaps(last_time_tick) >= 1000) {
+        status_bar_refresh_time();
+        last_time_tick = now;
+    }
+    if (lv_tick_elaps(last_batt_tick) >= 1000) {
+        status_bar_refresh_battery();
+        last_batt_tick = now;
+    }
 
     page_manager_check_timeout();
 

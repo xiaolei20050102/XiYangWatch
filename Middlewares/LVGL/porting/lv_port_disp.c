@@ -98,10 +98,10 @@ void lv_port_disp_init(void)
     lv_display_set_color_format(my_disp, LV_COLOR_FORMAT_RGB565_SWAPPED);
     lv_display_set_flush_cb(my_disp, disp_flush);
 
-    /* 双缓冲：buf_1 和 buf_2 各 35 行≈16.4KB，满屏 8 次 DMA */
+    /* 双缓冲：buf_1 和 buf_2 各 47 行≈22.0KB，满屏 6 次 DMA */
     LV_ATTRIBUTE_MEM_ALIGN
-    static uint8_t buf_1[MY_DISP_HOR_RES * 35 * BYTE_PER_PIXEL];
-    static uint8_t buf_2[MY_DISP_HOR_RES * 35 * BYTE_PER_PIXEL];
+    static uint8_t buf_1[MY_DISP_HOR_RES * 47 * BYTE_PER_PIXEL];
+    static uint8_t buf_2[MY_DISP_HOR_RES * 47 * BYTE_PER_PIXEL];
     lv_display_set_buffers(my_disp, buf_1, buf_2, sizeof(buf_1),
                            LV_DISPLAY_RENDER_MODE_PARTIAL);
 }

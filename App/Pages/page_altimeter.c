@@ -3,7 +3,13 @@
 
 static lv_obj_t *root;
 static lv_obj_t *label_altitude;
+static lv_obj_t *label_altitude_shadow;
+static lv_obj_t *label_alt_unit;
+static lv_obj_t *label_alt_unit_shadow;
 static lv_obj_t *label_pressure;
+static lv_obj_t *label_pressure_shadow;
+static lv_obj_t *label_baro_unit;
+static lv_obj_t *label_baro_unit_shadow;
 static lv_obj_t *bar_altitude;
 static lv_obj_t *bar_pressure;
 static lv_obj_t *icon_alt;
@@ -32,7 +38,9 @@ static void on_refresh(lv_timer_t *timer)
 {
     int32_t alt = watch_data_get_altitude();
     int32_t press = watch_data_get_pressure();
+    lv_label_set_text_fmt(label_altitude_shadow, "%d", alt);
     lv_label_set_text_fmt(label_altitude, "%d", alt);
+    lv_label_set_text_fmt(label_pressure_shadow, "%d", press);
     lv_label_set_text_fmt(label_pressure, "%d", press);
     lv_bar_set_value(bar_altitude, alt, LV_ANIM_OFF);
     lv_bar_set_value(bar_pressure, press, LV_ANIM_OFF);
@@ -46,7 +54,7 @@ static lv_obj_t *create(lv_obj_t *parent)
     lv_obj_set_style_pad_all(root, 0, 0);
     lv_obj_set_style_border_width(root, 0, 0);
     lv_obj_set_style_bg_color(root, lv_color_black(), 0);
-    lv_obj_set_style_bg_opa(root, LV_OPA_COVER, 0);
+    lv_obj_set_style_bg_opa(root, LV_OPA_TRANSP, 0);
 
     /* ── 中心分割线 ── */
     lv_obj_t *divider = lv_line_create(root);
@@ -74,12 +82,25 @@ static lv_obj_t *create(lv_obj_t *parent)
     lv_obj_set_style_bg_opa(container_alt, LV_OPA_TRANSP, 0);
     lv_obj_align(container_alt, LV_ALIGN_TOP_LEFT, 80, 30);
 
+    label_altitude_shadow = lv_label_create(container_alt);
+    lv_obj_set_style_text_font(label_altitude_shadow, &montserrat_48_digits, 0);
+    lv_obj_set_style_text_color(label_altitude_shadow, lv_color_black(), 0);
+    lv_obj_set_style_text_opa(label_altitude_shadow, LV_OPA_50, 0);
+    lv_obj_align(label_altitude_shadow, LV_ALIGN_TOP_LEFT, 2, 2);
+
     label_altitude = lv_label_create(container_alt);
     lv_obj_set_style_text_font(label_altitude, &montserrat_48_digits, 0);
     lv_obj_set_style_text_color(label_altitude, lv_color_hex(0xFF6600), 0);
     lv_obj_align(label_altitude, LV_ALIGN_TOP_LEFT, 0, 0);
 
-    lv_obj_t *label_alt_unit = lv_label_create(container_alt);
+    label_alt_unit_shadow = lv_label_create(container_alt);
+    lv_label_set_text(label_alt_unit_shadow, "Altitude (m)");
+    lv_obj_set_style_text_font(label_alt_unit_shadow, &lv_font_montserrat_20, 0);
+    lv_obj_set_style_text_color(label_alt_unit_shadow, lv_color_black(), 0);
+    lv_obj_set_style_text_opa(label_alt_unit_shadow, LV_OPA_50, 0);
+    lv_obj_align_to(label_alt_unit_shadow, label_altitude, LV_ALIGN_OUT_BOTTOM_LEFT, 1, 5);
+
+    label_alt_unit = lv_label_create(container_alt);
     lv_label_set_text(label_alt_unit, "Altitude (m)");
     lv_obj_set_style_text_font(label_alt_unit, &lv_font_montserrat_20, 0);
     lv_obj_set_style_text_color(label_alt_unit, lv_color_hex(0x777777), 0);
@@ -116,12 +137,25 @@ static lv_obj_t *create(lv_obj_t *parent)
     lv_obj_set_style_bg_opa(container_baro, LV_OPA_TRANSP, 0);
     lv_obj_align(container_baro, LV_ALIGN_TOP_LEFT, 80, 170);
 
+    label_pressure_shadow = lv_label_create(container_baro);
+    lv_obj_set_style_text_font(label_pressure_shadow, &montserrat_48_digits, 0);
+    lv_obj_set_style_text_color(label_pressure_shadow, lv_color_black(), 0);
+    lv_obj_set_style_text_opa(label_pressure_shadow, LV_OPA_50, 0);
+    lv_obj_align(label_pressure_shadow, LV_ALIGN_TOP_LEFT, 2, 2);
+
     label_pressure = lv_label_create(container_baro);
     lv_obj_set_style_text_font(label_pressure, &montserrat_48_digits, 0);
     lv_obj_set_style_text_color(label_pressure, lv_color_white(), 0);
     lv_obj_align(label_pressure, LV_ALIGN_TOP_LEFT, 0, 0);
 
-    lv_obj_t *label_baro_unit = lv_label_create(container_baro);
+    label_baro_unit_shadow = lv_label_create(container_baro);
+    lv_label_set_text(label_baro_unit_shadow, "Baro (hPa)");
+    lv_obj_set_style_text_font(label_baro_unit_shadow, &lv_font_montserrat_20, 0);
+    lv_obj_set_style_text_color(label_baro_unit_shadow, lv_color_black(), 0);
+    lv_obj_set_style_text_opa(label_baro_unit_shadow, LV_OPA_50, 0);
+    lv_obj_align_to(label_baro_unit_shadow, label_pressure, LV_ALIGN_OUT_BOTTOM_LEFT, 1, 5);
+
+    label_baro_unit = lv_label_create(container_baro);
     lv_label_set_text(label_baro_unit, "Baro (hPa)");
     lv_obj_set_style_text_font(label_baro_unit, &lv_font_montserrat_20, 0);
     lv_obj_set_style_text_color(label_baro_unit, lv_color_hex(0x777777), 0);

@@ -3,8 +3,11 @@
 
 static lv_obj_t *root;
 static lv_obj_t *arc;
+static lv_obj_t *arc_shadow;
 static lv_obj_t *label_steps;
+static lv_obj_t *label_steps_shadow;
 static lv_obj_t *label_target;
+static lv_obj_t *label_target_shadow;
 static lv_timer_t *refresh_timer;
 static int32_t arc_current;
 static int32_t anim_dummy1;
@@ -17,12 +20,14 @@ extern const lv_font_t montserrat_48_digits;
 static void arc_anim_cb(void *var, int32_t v)
 {
     (void)var;
+    lv_arc_set_value(arc_shadow, v);
     lv_arc_set_value(arc, v);
 }
 
 static void number_anim_cb(void *var, int32_t v)
 {
     (void)var;
+    lv_label_set_text_fmt(label_steps_shadow, "%d", v);
     lv_label_set_text_fmt(label_steps, "%d", v);
 }
 
@@ -35,14 +40,16 @@ static void arc_intro_finish(lv_anim_t *a)
 static void on_refresh(lv_timer_t *timer)
 {
     int steps = (int)watch_data_get_steps();
+    lv_label_set_text_fmt(label_steps_shadow, "%d", steps);
     lv_label_set_text_fmt(label_steps, "%d", steps);
 
-    if (!arc_intro_done) return;  /* 入场动画播完前不干涉 */
+    if (!arc_intro_done) return;
 
     int32_t target = steps;
     if (target > 10000) target = 10000;
     if (arc_current == target) return;
     arc_current = target;
+    lv_arc_set_value(arc_shadow, target);
     lv_arc_set_value(arc, target);
 }
 
@@ -53,7 +60,27 @@ static lv_obj_t *create(lv_obj_t *parent)
     lv_obj_set_style_pad_all(root, 0, 0);
     lv_obj_set_style_border_width(root, 0, 0);
     lv_obj_set_style_bg_color(root, lv_color_black(), 0);
-    lv_obj_set_style_bg_opa(root, LV_OPA_COVER, 0);
+    lv_obj_set_style_bg_opa(root, LV_OPA_TRANSP, 0);
+
+    /* ── 阴影底弧：INDICATOR 略宽，暗色过渡 ── */
+    arc_shadow = lv_arc_create(root);
+    lv_obj_set_size(arc_shadow, 210, 210);
+    lv_obj_center(arc_shadow);
+    lv_obj_remove_style(arc_shadow, NULL, LV_PART_KNOB);
+    lv_obj_remove_flag(arc_shadow, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_set_style_border_width(arc_shadow, 0, 0);
+    lv_obj_set_style_bg_opa(arc_shadow, LV_OPA_TRANSP, 0);
+    lv_obj_set_style_arc_width(arc_shadow, 18, LV_PART_MAIN);
+    lv_obj_set_style_arc_color(arc_shadow, lv_color_hex(0x005566), LV_PART_MAIN);
+    lv_obj_set_style_arc_opa(arc_shadow, LV_OPA_40, LV_PART_MAIN);
+    lv_obj_set_style_arc_width(arc_shadow, 22, LV_PART_INDICATOR);
+    lv_obj_set_style_arc_color(arc_shadow, lv_color_hex(0x000000), LV_PART_INDICATOR);
+    lv_obj_set_style_arc_opa(arc_shadow, LV_OPA_30, LV_PART_INDICATOR);
+    lv_obj_set_style_arc_rounded(arc_shadow, true, LV_PART_MAIN);
+    lv_obj_set_style_arc_rounded(arc_shadow, true, LV_PART_INDICATOR);
+    lv_arc_set_bg_angles(arc_shadow, 135, 45);
+    lv_arc_set_range(arc_shadow, 0, 10000);
+    lv_arc_set_value(arc_shadow, 0);
 
     /* ── 圆弧进度条 ── */
     arc = lv_arc_create(root);
@@ -63,9 +90,10 @@ static lv_obj_t *create(lv_obj_t *parent)
     lv_obj_remove_flag(arc, LV_OBJ_FLAG_CLICKABLE);
     lv_obj_set_style_border_width(arc, 0, 0);
     lv_obj_set_style_bg_opa(arc, LV_OPA_TRANSP, 0);
-    lv_obj_set_style_arc_width(arc, 14, LV_PART_MAIN);
-    lv_obj_set_style_arc_width(arc, 14, LV_PART_INDICATOR);
+    lv_obj_set_style_arc_width(arc, 18, LV_PART_MAIN);
+    lv_obj_set_style_arc_width(arc, 18, LV_PART_INDICATOR);
     lv_obj_set_style_arc_color(arc, lv_color_hex(0x005566), LV_PART_MAIN);
+    lv_obj_set_style_arc_opa(arc, LV_OPA_40, LV_PART_MAIN);
     lv_obj_set_style_arc_color(arc, lv_color_hex(0x00E5FF), LV_PART_INDICATOR);
     lv_obj_set_style_arc_rounded(arc, true, LV_PART_MAIN);
     lv_obj_set_style_arc_rounded(arc, true, LV_PART_INDICATOR);
@@ -76,7 +104,14 @@ static lv_obj_t *create(lv_obj_t *parent)
     arc_current = 0;
     arc_intro_done = false;
 
-    /* ── 步数 (先创建对象，再启动动画，避免回调空指针) ── */
+    /* ── 步数 ── */
+    label_steps_shadow = lv_label_create(root);
+    lv_label_set_text(label_steps_shadow, "0");
+    lv_obj_set_style_text_font(label_steps_shadow, &montserrat_48_digits, 0);
+    lv_obj_set_style_text_color(label_steps_shadow, lv_color_black(), 0);
+    lv_obj_set_style_text_opa(label_steps_shadow, LV_OPA_50, 0);
+    lv_obj_align(label_steps_shadow, LV_ALIGN_CENTER, 2, -2);
+
     label_steps = lv_label_create(root);
     lv_label_set_text(label_steps, "0");
     lv_obj_set_style_text_font(label_steps, &montserrat_48_digits, 0);
@@ -121,6 +156,13 @@ static lv_obj_t *create(lv_obj_t *parent)
     lv_obj_align(icon, LV_ALIGN_CENTER, 0, 36);
 
     /* ── 目标 ── */
+    label_target_shadow = lv_label_create(root);
+    lv_label_set_text(label_target_shadow, "/ 10000");
+    lv_obj_set_style_text_font(label_target_shadow, &lv_font_montserrat_16, 0);
+    lv_obj_set_style_text_color(label_target_shadow, lv_color_black(), 0);
+    lv_obj_set_style_text_opa(label_target_shadow, LV_OPA_50, 0);
+    lv_obj_align(label_target_shadow, LV_ALIGN_CENTER, 1, 61);
+
     label_target = lv_label_create(root);
     lv_label_set_text(label_target, "/ 10000");
     lv_obj_set_style_text_font(label_target, &lv_font_montserrat_16, 0);

@@ -39,6 +39,7 @@ static const menu_item_t items[] = {
 #define LIST_PAD   8
 
 static lv_obj_t *rows[ITEM_COUNT];
+static lv_obj_t *divs[ITEM_COUNT - 1];
 
 static void row_translate_cb(void *var, int32_t v)
 {
@@ -62,7 +63,7 @@ static lv_obj_t *create(lv_obj_t *parent)
     lv_obj_set_size(root, 240, 280);
     lv_obj_set_style_pad_all(root, 0, 0);
     lv_obj_set_style_border_width(root, 0, 0);
-    lv_obj_set_style_bg_color(root, lv_color_black(), 0);
+    lv_obj_set_style_bg_color(root, lv_color_white(), 0);
     lv_obj_set_style_bg_opa(root, LV_OPA_COVER, 0);
 
     /* scrollable list */
@@ -78,13 +79,14 @@ static lv_obj_t *create(lv_obj_t *parent)
     lv_obj_set_flex_flow(list, LV_FLEX_FLOW_COLUMN);
     lv_obj_set_flex_align(list, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
 
+    #define DIV_W (LIST_W - LIST_PAD * 2 - 52)  /* 156: from icon-right to row-right */
     for (int i = 0; i < ITEM_COUNT; i++) {
         lv_obj_t *row = lv_obj_create(list);
         lv_obj_set_size(row, LIST_W - LIST_PAD * 2, ITEM_H);
         lv_obj_set_style_pad_all(row, 0, 0);
         lv_obj_set_style_border_width(row, 0, 0);
         lv_obj_set_style_bg_opa(row, LV_OPA_TRANSP, 0);
-        lv_obj_set_style_radius(row, 10, 0);
+        lv_obj_set_style_radius(row, 0, 0);
         lv_obj_set_flex_flow(row, LV_FLEX_FLOW_ROW);
         lv_obj_set_flex_align(row, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
 
@@ -99,7 +101,7 @@ static lv_obj_t *create(lv_obj_t *parent)
         lv_obj_t *label = lv_label_create(row);
         lv_label_set_text(label, items[i].name);
         lv_obj_set_style_text_font(label, &lv_font_montserrat_16, 0);
-        lv_obj_set_style_text_color(label, lv_color_white(), 0);
+        lv_obj_set_style_text_color(label, lv_color_black(), 0);
         lv_obj_set_style_pad_left(label, 12, 0);
 
         lv_obj_add_flag(row, LV_OBJ_FLAG_CLICKABLE);
@@ -110,6 +112,20 @@ static lv_obj_t *create(lv_obj_t *parent)
         lv_obj_set_style_translate_y(row, 35, 0);
         lv_obj_set_style_opa(row, LV_OPA_TRANSP, 0);
         rows[i] = row;
+
+        /* divider (except after last item) */
+        if (i < ITEM_COUNT - 1) {
+            lv_obj_t *div = lv_obj_create(list);
+            lv_obj_set_size(div, DIV_W, 1);
+            lv_obj_set_style_pad_all(div, 0, 0);
+            lv_obj_set_style_border_width(div, 0, 0);
+            lv_obj_set_style_bg_color(div, lv_color_hex(0xE0E0E0), 0);
+            lv_obj_set_style_bg_opa(div, LV_OPA_COVER, 0);
+            lv_obj_set_style_radius(div, 0, 0);
+            lv_obj_set_style_translate_x(div, (LIST_W - LIST_PAD * 2 - DIV_W) / 2, 0);
+            lv_obj_set_style_opa(div, LV_OPA_TRANSP, 0);
+            divs[i] = div;
+        }
     }
 
     int32_t content_h = ITEM_COUNT * ITEM_H;
@@ -137,6 +153,15 @@ static lv_obj_t *create(lv_obj_t *parent)
         lv_anim_set_exec_cb(&a, row_opa_cb);
         lv_anim_set_duration(&a, 280);
         lv_anim_start(&a);
+
+        /* divider fades in with the same delay */
+        if (i < ITEM_COUNT - 1) {
+            lv_anim_set_var(&a, divs[i]);
+            lv_anim_set_values(&a, LV_OPA_TRANSP, LV_OPA_COVER);
+            lv_anim_set_exec_cb(&a, row_opa_cb);
+            lv_anim_set_duration(&a, 280);
+            lv_anim_start(&a);
+        }
     }
 
     return root;

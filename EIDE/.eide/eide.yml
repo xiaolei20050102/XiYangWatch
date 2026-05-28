@@ -51,18 +51,11 @@ virtualFolder:
           folders:
             - name: Icons
               files:
-                - path: ../App/Images/Icons/little_heart.c
-                - path: ../App/Images/Icons/spO2.c
-                - path: ../App/Images/Icons/little_footprints.c
                 - path: ../App/Images/Icons/The_little_person_is_running.c
-                - path: ../App/Images/Icons/Love_icon22_20.c
                 - path: ../App/Images/Icons/elevation.c
                 - path: ../App/Images/Icons/barometric_pressure.c
-                - path: ../App/Images/Icons/heart_rate_32.c
-                - path: ../App/Images/Icons/blood_oxygen_32.c
                 - path: ../App/Images/Icons/heart_rate_48.c
                 - path: ../App/Images/Icons/blood_oxygen_48.c
-                - path: ../App/Images/Icons/temperature_32.c
                 - path: ../App/Images/Icons/new_temperature_32.c
                 - path: ../App/Images/Icons/humidity_32.c
                 - path: ../App/Images/Icons/activity_32.c
@@ -78,7 +71,8 @@ virtualFolder:
                 - path: ../App/Images/Icons/Flashlight_On.c
               folders: []
             - name: Wallpapers
-              files: []
+              files:
+                - path: ../App/Images/Wallpapers/wallpaper.c
               folders: []
         - name: Pages
           files:

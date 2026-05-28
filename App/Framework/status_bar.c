@@ -20,13 +20,13 @@ void status_bar_create(lv_obj_t *parent)
     /* center: time */
     label_time = lv_label_create(bar);
     lv_obj_set_style_text_font(label_time, &lv_font_montserrat_14, 0);
-    lv_obj_set_style_text_color(label_time, lv_color_white(), 0);
+    lv_obj_set_style_text_color(label_time, lv_color_black(), 0);
     lv_obj_align(label_time, LV_ALIGN_CENTER, 0, 0);
 
     /* right: battery percent */
     label_battery = lv_label_create(bar);
     lv_obj_set_style_text_font(label_battery, &lv_font_montserrat_14, 0);
-    lv_obj_set_style_text_color(label_battery, lv_color_white(), 0);
+    lv_obj_set_style_text_color(label_battery, lv_color_black(), 0);
     lv_obj_align(label_battery, LV_ALIGN_RIGHT_MID, -36, 0);
 
     /* right: battery ring, placed directly on bar (no flex wrapper) */
@@ -38,8 +38,8 @@ void status_bar_create(lv_obj_t *parent)
     lv_obj_set_style_border_width(arc_battery, 0, 0);
     lv_obj_set_style_arc_width(arc_battery, 2, LV_PART_MAIN);
     lv_obj_set_style_arc_width(arc_battery, 2, LV_PART_INDICATOR);
-    lv_obj_set_style_arc_color(arc_battery, lv_color_hex(0x333333), LV_PART_MAIN);
-    lv_obj_set_style_arc_color(arc_battery, lv_color_white(), LV_PART_INDICATOR);
+    lv_obj_set_style_arc_color(arc_battery, lv_color_hex(0xCCCCCC), LV_PART_MAIN);
+    lv_obj_set_style_arc_color(arc_battery, lv_color_black(), LV_PART_INDICATOR);
     lv_obj_set_style_arc_rounded(arc_battery, false, LV_PART_MAIN);
     lv_obj_set_style_arc_rounded(arc_battery, false, LV_PART_INDICATOR);
     lv_obj_set_style_bg_opa(arc_battery, LV_OPA_TRANSP, LV_PART_KNOB);
@@ -70,6 +70,7 @@ void status_bar_set_visible(bool visible)
 void status_bar_refresh_time(void)
 {
     if (!label_time) return;
+    if (lv_obj_has_flag(bar, LV_OBJ_FLAG_HIDDEN)) return;
     watch_time_t t;
     watch_data_get_time(&t);
     lv_label_set_text_fmt(label_time, "%02d:%02d", t.hour, t.min);
@@ -77,6 +78,8 @@ void status_bar_refresh_time(void)
 
 void status_bar_refresh_battery(void)
 {
+    if (!bar) return;
+    if (lv_obj_has_flag(bar, LV_OBJ_FLAG_HIDDEN)) return;
     int32_t pct = watch_data_get_battery();
     if (label_battery) lv_label_set_text_fmt(label_battery, "%d%%", (int)pct);
     if (arc_battery) lv_arc_set_value(arc_battery, pct);

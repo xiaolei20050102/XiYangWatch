@@ -5,11 +5,15 @@
 static lv_obj_t *root;
 static lv_obj_t *divider;
 static lv_obj_t *label_hr;
+static lv_obj_t *label_hr_shadow;
 static lv_obj_t *label_bpm;
+static lv_obj_t *label_bpm_shadow;
 static lv_obj_t *heart_icon;
 static lv_obj_t *spo2_icon;
 static lv_obj_t *label_spo2_num;
+static lv_obj_t *label_spo2_num_shadow;
 static lv_obj_t *label_spo2_pct;
+static lv_obj_t *label_spo2_pct_shadow;
 static lv_obj_t *btn_spo2;
 static lv_obj_t *label_btn;
 static lv_timer_t *refresh_timer;
@@ -21,13 +25,18 @@ static int32_t spo2_measuring;
 static int32_t arc_display;
 
 /* ── 测量模式控件 ── */
-static lv_obj_t   *meas_bg;              /* 全屏纯黑背景, opa 255 */
+static lv_obj_t   *meas_bg;
 static lv_obj_t   *meas_hint;
+static lv_obj_t   *meas_hint_shadow;
 static lv_obj_t   *meas_arc;
 static lv_obj_t   *meas_countdown_label;
+static lv_obj_t   *meas_countdown_label_shadow;
 static lv_obj_t   *meas_status;
+static lv_obj_t   *meas_status_shadow;
 static lv_obj_t   *meas_result_num;
+static lv_obj_t   *meas_result_num_shadow;
 static lv_obj_t   *meas_result_pct;
+static lv_obj_t   *meas_result_pct_shadow;
 static lv_timer_t *meas_timer;
 static lv_timer_t *result_timer;
 static bool        idle_animations_running;
@@ -77,11 +86,25 @@ static void arc_rotation_cb(void *var, int32_t v) {
 }
 static void spo2_roll_cb(void *var, int32_t v) {
 	(void)var;
+	lv_label_set_text_fmt(label_spo2_num_shadow, "%d", v);
 	lv_label_set_text_fmt(label_spo2_num, "%d", v);
+	lv_obj_align_to(label_spo2_num_shadow, label_spo2_num, LV_ALIGN_TOP_LEFT, 2, 2);
 	lv_obj_align_to(label_spo2_pct, label_spo2_num, LV_ALIGN_OUT_RIGHT_TOP, 6, 8);
+	lv_obj_align_to(label_spo2_pct_shadow, label_spo2_pct, LV_ALIGN_TOP_LEFT, 1, 1);
 }
 
 /* ==================== 辅助函数 ==================== */
+
+static void set_spo2_shadow_font(void)
+{
+	lv_obj_set_style_text_font(label_spo2_num_shadow, lv_obj_get_style_text_font(label_spo2_num, 0), 0);
+}
+
+static void align_spo2_shadows(void)
+{
+	lv_obj_align_to(label_spo2_num_shadow, label_spo2_num, LV_ALIGN_TOP_LEFT, 2, 2);
+	lv_obj_align_to(label_spo2_pct_shadow, label_spo2_pct, LV_ALIGN_TOP_LEFT, 1, 1);
+}
 
 static void set_spo2_placeholder(void)
 {
@@ -92,6 +115,16 @@ static void set_spo2_placeholder(void)
 	lv_label_set_text(label_spo2_pct, "%");
 	lv_obj_set_style_text_color(label_spo2_pct, lv_color_hex(0x555555), 0);
 	lv_obj_align_to(label_spo2_pct, label_spo2_num, LV_ALIGN_OUT_RIGHT_TOP, 2, 2);
+
+	lv_obj_set_style_text_font(label_spo2_num_shadow, &lv_font_montserrat_20, 0);
+	lv_label_set_text(label_spo2_num_shadow, "--");
+	lv_obj_set_style_text_color(label_spo2_num_shadow, lv_color_black(), 0);
+	lv_obj_set_style_text_opa(label_spo2_num_shadow, LV_OPA_50, 0);
+	lv_obj_set_style_text_font(label_spo2_pct_shadow, &lv_font_montserrat_16, 0);
+	lv_label_set_text(label_spo2_pct_shadow, "%");
+	lv_obj_set_style_text_color(label_spo2_pct_shadow, lv_color_black(), 0);
+	lv_obj_set_style_text_opa(label_spo2_pct_shadow, LV_OPA_50, 0);
+	align_spo2_shadows();
 }
 
 static void set_spo2_value(int32_t val)
@@ -103,6 +136,16 @@ static void set_spo2_value(int32_t val)
 	lv_label_set_text(label_spo2_pct, "%");
 	lv_obj_set_style_text_color(label_spo2_pct, lv_color_hex(0x808080), 0);
 	lv_obj_align_to(label_spo2_pct, label_spo2_num, LV_ALIGN_OUT_RIGHT_TOP, 6, 8);
+
+	lv_obj_set_style_text_font(label_spo2_num_shadow, &montserrat_48_digits, 0);
+	lv_label_set_text_fmt(label_spo2_num_shadow, "%d", val);
+	lv_obj_set_style_text_color(label_spo2_num_shadow, lv_color_black(), 0);
+	lv_obj_set_style_text_opa(label_spo2_num_shadow, LV_OPA_50, 0);
+	lv_obj_set_style_text_font(label_spo2_pct_shadow, &lv_font_montserrat_16, 0);
+	lv_label_set_text(label_spo2_pct_shadow, "%");
+	lv_obj_set_style_text_color(label_spo2_pct_shadow, lv_color_black(), 0);
+	lv_obj_set_style_text_opa(label_spo2_pct_shadow, LV_OPA_50, 0);
+	align_spo2_shadows();
 }
 
 static void animate_spo2_to(int32_t target, int32_t delay_ms)
@@ -111,7 +154,6 @@ static void animate_spo2_to(int32_t target, int32_t delay_ms)
 		set_spo2_placeholder();
 		return;
 	}
-	/* 先展示 "0"，再滚动到 target */
 	set_spo2_value(0);
 	lv_anim_t a;
 	lv_anim_init(&a);
@@ -132,8 +174,11 @@ static void exit_meas_mode(void)
 	lv_anim_delete(NULL, arc_rotation_cb);
 	if (meas_bg) { lv_obj_delete(meas_bg); meas_bg = NULL; }
 	if (result_timer) { lv_timer_delete(result_timer); result_timer = NULL; }
-	meas_hint = NULL; meas_arc = NULL; meas_countdown_label = NULL;
-	meas_status = NULL; meas_result_num = NULL; meas_result_pct = NULL;
+	meas_hint = NULL; meas_hint_shadow = NULL; meas_arc = NULL;
+	meas_countdown_label = NULL; meas_countdown_label_shadow = NULL;
+	meas_status = NULL; meas_status_shadow = NULL;
+	meas_result_num = NULL; meas_result_num_shadow = NULL;
+	meas_result_pct = NULL; meas_result_pct_shadow = NULL;
 	if (meas_timer) { lv_timer_delete(meas_timer); meas_timer = NULL; }
 }
 
@@ -142,9 +187,8 @@ static void exit_meas_mode(void)
 static void stop_idle_animations(void)
 {
 	if (!idle_animations_running) return;
-	lv_anim_delete(NULL, scale_cb);   /* heart_icon pump */
-	lv_anim_delete(NULL, text_opa_cb);    /* label_hr pulse */
-	lv_anim_delete(NULL, border_opa_cb);  /* btn_spo2 border */
+	lv_anim_delete(NULL, scale_cb);
+	lv_anim_delete(NULL, border_opa_cb);
 	idle_animations_running = false;
 }
 
@@ -153,22 +197,12 @@ static void start_idle_animations(void)
 	if (idle_animations_running) return;
 	lv_anim_t a;
 
-	/* 心跳泵动: 从收缩态快速弹回原大 → 再缓缓缩回，256=1.0x */
 	lv_anim_init(&a);
 	lv_anim_set_var(&a, heart_icon);
 	lv_anim_set_values(&a, 210, 256);
 	lv_anim_set_exec_cb(&a, scale_cb);
 	lv_anim_set_duration(&a, 100);
 	lv_anim_set_playback_duration(&a, 500);
-	lv_anim_set_repeat_count(&a, LV_ANIM_REPEAT_INFINITE);
-	lv_anim_start(&a);
-
-	lv_anim_init(&a);
-	lv_anim_set_var(&a, label_hr);
-	lv_anim_set_values(&a, 220, 255);
-	lv_anim_set_exec_cb(&a, text_opa_cb);
-	lv_anim_set_duration(&a, 900);
-	lv_anim_set_playback_duration(&a, 900);
 	lv_anim_set_repeat_count(&a, LV_ANIM_REPEAT_INFINITE);
 	lv_anim_start(&a);
 
@@ -196,19 +230,18 @@ static void on_entry_complete(lv_anim_t *a)
 static void dashboard_set_opa(int32_t target, int32_t duration, lv_anim_completed_cb_t cb)
 {
 	lv_obj_t *dash[] = {
-		heart_icon, label_hr, label_bpm, divider,
-		spo2_icon, label_spo2_num, label_spo2_pct, btn_spo2
+		heart_icon, label_hr, label_hr_shadow, label_bpm, label_bpm_shadow, divider,
+		spo2_icon, label_spo2_num, label_spo2_num_shadow, label_spo2_pct, label_spo2_pct_shadow, btn_spo2
 	};
 	lv_anim_t a;
-	for (int i = 0; i < 8; i++) {
+	for (int i = 0; i < 12; i++) {
 		lv_anim_init(&a);
 		lv_anim_set_var(&a, dash[i]);
 		lv_anim_set_values(&a, target == 0 ? 255 : 0, target);
 		lv_anim_set_exec_cb(&a, opa_cb);
 		lv_anim_set_duration(&a, duration);
 		lv_anim_set_path_cb(&a, lv_anim_path_ease_out);
-		/* 仅最后一个元素触发回调, 防止重复执行 */
-		lv_anim_set_completed_cb(&a, (i == 7) ? cb : NULL);
+		lv_anim_set_completed_cb(&a, (i == 11) ? cb : NULL);
 		lv_anim_start(&a);
 	}
 }
@@ -227,8 +260,6 @@ static void start_countdown_pulse(void)
 	lv_anim_start(&a);
 }
 
-/* ── 测量完成 → 显示结果 → 恢复仪表盘 ── */
-
 static void restore_dashboard_cb(lv_anim_t *a)
 {
 	(void)a;
@@ -244,7 +275,6 @@ static void result_fade_out(lv_timer_t *t)
 	result_timer = NULL;
 	if (!meas_bg) return;
 
-	/* 测量背景 + 结果淡出 */
 	lv_anim_t a;
 	lv_anim_init(&a);
 	lv_anim_set_var(&a, meas_bg);
@@ -255,17 +285,14 @@ static void result_fade_out(lv_timer_t *t)
 	lv_anim_set_completed_cb(&a, restore_dashboard_cb);
 	lv_anim_start(&a);
 
-	/* 仪表盘同步淡入 */
 	dashboard_set_opa(255, 380, NULL);
 }
 
 static void show_result(void)
 {
-	/* 先停掉 hint 呼吸 + arc 指示器脉冲，避免影响后续操作 */
 	lv_anim_delete(NULL, text_opa_cb);
 	lv_anim_delete(NULL, arc_indicator_opa_cb);
 
-	/* 倒计时淡出 — 用 opa_cb 而非 text_opa_cb */
 	lv_anim_t a;
 	lv_anim_init(&a);
 	lv_anim_set_var(&a, meas_countdown_label);
@@ -274,14 +301,40 @@ static void show_result(void)
 	lv_anim_set_duration(&a, 200);
 	lv_anim_start(&a);
 
-	/* hint 淡出 */
+	lv_anim_set_var(&a, meas_countdown_label_shadow);
+	lv_anim_start(&a);
+
 	lv_anim_set_var(&a, meas_hint);
 	lv_anim_set_values(&a, 255, 0);
 	lv_anim_set_exec_cb(&a, opa_cb);
 	lv_anim_set_duration(&a, 200);
 	lv_anim_start(&a);
 
-	/* "98" 从下方上浮淡入 (y:+8 → 0) */
+	lv_anim_set_var(&a, meas_hint_shadow);
+	lv_anim_start(&a);
+
+	/* 阴影 "98" */
+	meas_result_num_shadow = lv_label_create(meas_bg);
+	lv_label_set_text(meas_result_num_shadow, "98");
+	lv_obj_set_style_text_font(meas_result_num_shadow, &montserrat_48_digits, 0);
+	lv_obj_set_style_text_color(meas_result_num_shadow, lv_color_black(), 0);
+	lv_obj_set_style_text_opa(meas_result_num_shadow, 0, 0);
+	lv_obj_set_style_translate_y(meas_result_num_shadow, 8, 0);
+	lv_obj_align(meas_result_num_shadow, LV_ALIGN_CENTER, -8, -8);
+
+	lv_anim_set_var(&a, meas_result_num_shadow);
+	lv_anim_set_values(&a, 8, 0);
+	lv_anim_set_exec_cb(&a, translate_y_cb);
+	lv_anim_set_duration(&a, 450);
+	lv_anim_set_path_cb(&a, lv_anim_path_ease_out);
+	lv_anim_start(&a);
+
+	lv_anim_set_values(&a, 0, 255);
+	lv_anim_set_exec_cb(&a, text_opa_cb);
+	lv_anim_set_duration(&a, 400);
+	lv_anim_start(&a);
+
+	/* "98" */
 	meas_result_num = lv_label_create(meas_bg);
 	lv_label_set_text(meas_result_num, "98");
 	lv_obj_set_style_text_font(meas_result_num, &montserrat_48_digits, 0);
@@ -302,7 +355,22 @@ static void show_result(void)
 	lv_anim_set_duration(&a, 400);
 	lv_anim_start(&a);
 
-	/* "%" 跟随 */
+	/* 阴影 "%" */
+	meas_result_pct_shadow = lv_label_create(meas_bg);
+	lv_label_set_text(meas_result_pct_shadow, "%");
+	lv_obj_set_style_text_font(meas_result_pct_shadow, &lv_font_montserrat_20, 0);
+	lv_obj_set_style_text_color(meas_result_pct_shadow, lv_color_black(), 0);
+	lv_obj_set_style_text_opa(meas_result_pct_shadow, 0, 0);
+	lv_obj_align_to(meas_result_pct_shadow, meas_result_num, LV_ALIGN_OUT_RIGHT_TOP, 5, 7);
+
+	lv_anim_set_var(&a, meas_result_pct_shadow);
+	lv_anim_set_values(&a, 0, 255);
+	lv_anim_set_exec_cb(&a, text_opa_cb);
+	lv_anim_set_duration(&a, 400);
+	lv_anim_set_delay(&a, 140);
+	lv_anim_start(&a);
+
+	/* "%" */
 	meas_result_pct = lv_label_create(meas_bg);
 	lv_label_set_text(meas_result_pct, "%");
 	lv_obj_set_style_text_font(meas_result_pct, &lv_font_montserrat_20, 0);
@@ -317,7 +385,6 @@ static void show_result(void)
 	lv_anim_set_delay(&a, 140);
 	lv_anim_start(&a);
 
-	/* arc → 雷达旋转: 短弧段持续旋转 */
 	lv_arc_set_value(meas_arc, 55);
 	lv_obj_set_style_arc_color(meas_arc, lv_color_hex(0x3AFFB6), LV_PART_INDICATOR);
 	lv_obj_set_style_arc_opa(meas_arc, LV_OPA_COVER, LV_PART_INDICATOR);
@@ -332,23 +399,22 @@ static void show_result(void)
 	lv_anim_set_path_cb(&a_rot, lv_anim_path_linear);
 	lv_anim_start(&a_rot);
 
-	/* 状态文字更新 */
 	lv_label_set_text(meas_status, "Measurement complete");
+	lv_label_set_text(meas_status_shadow, "Measurement complete");
 
-	/* 2s 后退出 */
 	result_timer = lv_timer_create(result_fade_out, 1000, NULL);
 	lv_timer_set_repeat_count(result_timer, 1);
 }
 
-/* ── 倒计时 tick ── */
-
 static void on_meas_tick(lv_timer_t *t)
 {
 	if (spo2_countdown > 1) {
+		lv_label_set_text_fmt(meas_countdown_label_shadow, "%d", spo2_countdown);
 		lv_label_set_text_fmt(meas_countdown_label, "%d", spo2_countdown);
 		start_countdown_pulse();
 		spo2_countdown--;
 	} else if (spo2_countdown == 1) {
+		lv_label_set_text(meas_countdown_label_shadow, "1");
 		lv_label_set_text(meas_countdown_label, "1");
 		start_countdown_pulse();
 		spo2_countdown--;
@@ -364,13 +430,10 @@ static void on_meas_tick(lv_timer_t *t)
 	}
 }
 
-/* ── 仪表盘淡出完成后进入测量 ── */
-
 static void on_dash_faded(lv_anim_t *a)
 {
 	(void)a;
 
-	/* 全屏纯黑背景: opa 255, 完全不透 */
 	meas_bg = lv_obj_create(root);
 	lv_obj_set_size(meas_bg, 240, 280);
 	lv_obj_set_style_bg_color(meas_bg, lv_color_black(), 0);
@@ -389,16 +452,21 @@ static void on_dash_faded(lv_anim_t *a)
 	lv_anim_set_path_cb(&a2, lv_anim_path_ease_out);
 	lv_anim_start(&a2);
 
-	/* -------- 测量元素 -------- */
+	/* "Keep still..." shadow */
+	meas_hint_shadow = lv_label_create(meas_bg);
+	lv_label_set_text(meas_hint_shadow, "Keep still...");
+	lv_obj_set_style_text_font(meas_hint_shadow, &lv_font_montserrat_16, 0);
+	lv_obj_set_style_text_color(meas_hint_shadow, lv_color_black(), 0);
+	lv_obj_set_style_text_opa(meas_hint_shadow, LV_OPA_50, 0);
+	lv_obj_align(meas_hint_shadow, LV_ALIGN_CENTER, 1, -97);
 
-	/* "Keep still..." Y≈40 */
+	/* "Keep still..." */
 	meas_hint = lv_label_create(meas_bg);
 	lv_label_set_text(meas_hint, "Keep still...");
 	lv_obj_set_style_text_font(meas_hint, &lv_font_montserrat_16, 0);
 	lv_obj_set_style_text_color(meas_hint, lv_color_hex(0xA8A8A8), 0);
 	lv_obj_align(meas_hint, LV_ALIGN_CENTER, 0, -98);
 
-	/* hint 呼吸 */
 	lv_anim_set_var(&a2, meas_hint);
 	lv_anim_set_values(&a2, 140, 220);
 	lv_anim_set_exec_cb(&a2, text_opa_cb);
@@ -407,7 +475,7 @@ static void on_dash_faded(lv_anim_t *a)
 	lv_anim_set_repeat_count(&a2, LV_ANIM_REPEAT_INFINITE);
 	lv_anim_start(&a2);
 
-	/* 扫描弧 108×108 */
+	/* 扫描弧 */
 	meas_arc = lv_arc_create(meas_bg);
 	lv_obj_set_size(meas_arc, 108, 108);
 	lv_obj_align(meas_arc, LV_ALIGN_CENTER, 0, -10);
@@ -430,7 +498,6 @@ static void on_dash_faded(lv_anim_t *a)
 	lv_obj_set_style_pad_all(meas_arc, 0, 0);
 	lv_obj_set_style_shadow_width(meas_arc, 0, 0);
 
-	/* arc sweep: 0 → 300, ease_in_out 呼吸式, 2800ms */
 	lv_anim_set_var(&a2, &arc_display);
 	lv_anim_set_values(&a2, 0, 300);
 	lv_anim_set_exec_cb(&a2, arc_anim_cb);
@@ -439,7 +506,6 @@ static void on_dash_faded(lv_anim_t *a)
 	lv_anim_set_path_cb(&a2, lv_anim_path_ease_in_out);
 	lv_anim_start(&a2);
 
-	/* 指示器 opa 呼吸脉冲: 150 → 255 → 150, 1.2s 周期 */
 	lv_anim_set_var(&a2, meas_arc);
 	lv_anim_set_values(&a2, 200, 255);
 	lv_anim_set_exec_cb(&a2, arc_indicator_opa_cb);
@@ -448,13 +514,29 @@ static void on_dash_faded(lv_anim_t *a)
 	lv_anim_set_repeat_count(&a2, LV_ANIM_REPEAT_INFINITE);
 	lv_anim_start(&a2);
 
-	/* 倒计时数字: 锚定 arc 中心 */
+	/* 倒计时阴影 */
+	meas_countdown_label_shadow = lv_label_create(meas_bg);
+	lv_label_set_text(meas_countdown_label_shadow, "3");
+	lv_obj_set_style_text_font(meas_countdown_label_shadow, &montserrat_48_digits, 0);
+	lv_obj_set_style_text_color(meas_countdown_label_shadow, lv_color_black(), 0);
+	lv_obj_set_style_text_opa(meas_countdown_label_shadow, LV_OPA_50, 0);
+	lv_obj_align(meas_countdown_label_shadow, LV_ALIGN_CENTER, 2, -8);
+
+	/* 倒计时数字 */
 	meas_countdown_label = lv_label_create(meas_bg);
 	lv_label_set_text(meas_countdown_label, "3");
 	lv_obj_set_style_text_font(meas_countdown_label, &montserrat_48_digits, 0);
 	lv_obj_set_style_text_color(meas_countdown_label, lv_color_white(), 0);
 	lv_obj_align(meas_countdown_label, LV_ALIGN_CENTER, 0, -10);
 	start_countdown_pulse();
+
+	/* "Scanning..." shadow */
+	meas_status_shadow = lv_label_create(meas_bg);
+	lv_label_set_text(meas_status_shadow, "Scanning...");
+	lv_obj_set_style_text_font(meas_status_shadow, &lv_font_montserrat_14, 0);
+	lv_obj_set_style_text_color(meas_status_shadow, lv_color_black(), 0);
+	lv_obj_set_style_text_opa(meas_status_shadow, LV_OPA_50, 0);
+	lv_obj_align(meas_status_shadow, LV_ALIGN_CENTER, 1, 61);
 
 	/* "Scanning..." */
 	meas_status = lv_label_create(meas_bg);
@@ -499,14 +581,9 @@ static bool meas_gesture_intercept(gesture_t g)
 static void enter_meas_mode(void)
 {
 	stop_idle_animations();
-
 	gesture_set_intercept(meas_gesture_intercept);
-
-	/* 仪表盘淡出 (300ms), 完成后触发 on_dash_faded */
 	dashboard_set_opa(0, 300, on_dash_faded);
 }
-
-/* ==================== 按钮点击 → 进入测量 ==================== */
 
 static void on_spo2_click(lv_event_t *e)
 {
@@ -526,11 +603,10 @@ static void on_spo2_click(lv_event_t *e)
 	meas_timer = lv_timer_create(on_meas_tick, 1000, NULL);
 }
 
-/* ==================== 定时刷新 ==================== */
-
 static void on_refresh(lv_timer_t *timer)
 {
 	hr_value = watch_data_get_heart_rate();
+	lv_label_set_text_fmt(label_hr_shadow, "%d", hr_value);
 	lv_label_set_text_fmt(label_hr, "%d", hr_value);
 }
 
@@ -544,7 +620,7 @@ static lv_obj_t *create(lv_obj_t *parent)
 	lv_obj_set_style_pad_all(root, 0, 0);
 	lv_obj_set_style_border_width(root, 0, 0);
 	lv_obj_set_style_bg_color(root, lv_color_black(), 0);
-	lv_obj_set_style_bg_opa(root, LV_OPA_COVER, 0);
+	lv_obj_set_style_bg_opa(root, LV_OPA_TRANSP, 0);
 
 	/* ═══════════════ 分割线 ═══════════════ */
 	{
@@ -564,11 +640,25 @@ static lv_obj_t *create(lv_obj_t *parent)
 	lv_image_set_src(heart_icon, &heart_rate_48);
 	lv_obj_align(heart_icon, LV_ALIGN_CENTER, -84, -51);
 
+	label_hr_shadow = lv_label_create(root);
+	lv_label_set_text_fmt(label_hr_shadow, "%d", watch_data_get_heart_rate());
+	lv_obj_set_style_text_font(label_hr_shadow, &montserrat_48_digits, 0);
+	lv_obj_set_style_text_color(label_hr_shadow, lv_color_black(), 0);
+	lv_obj_set_style_text_opa(label_hr_shadow, LV_OPA_50, 0);
+	lv_obj_align(label_hr_shadow, LV_ALIGN_CENTER, 2, -52);
+
 	label_hr = lv_label_create(root);
 	lv_label_set_text_fmt(label_hr, "%d", watch_data_get_heart_rate());
 	lv_obj_set_style_text_font(label_hr, &montserrat_48_digits, 0);
 	lv_obj_set_style_text_color(label_hr, lv_color_white(), 0);
 	lv_obj_align(label_hr, LV_ALIGN_CENTER, 0, -54);
+
+	label_bpm_shadow = lv_label_create(root);
+	lv_label_set_text(label_bpm_shadow, "bpm");
+	lv_obj_set_style_text_font(label_bpm_shadow, &lv_font_montserrat_16, 0);
+	lv_obj_set_style_text_color(label_bpm_shadow, lv_color_black(), 0);
+	lv_obj_set_style_text_opa(label_bpm_shadow, LV_OPA_50, 0);
+	lv_obj_align_to(label_bpm_shadow, label_hr, LV_ALIGN_OUT_RIGHT_BOTTOM, 9, 1);
 
 	label_bpm = lv_label_create(root);
 	lv_label_set_text(label_bpm, "bpm");
@@ -582,9 +672,13 @@ static lv_obj_t *create(lv_obj_t *parent)
 	lv_image_set_src(spo2_icon, &blood_oxygen_48);
 	lv_obj_align(spo2_icon, LV_ALIGN_CENTER, -80, 54);
 
+	label_spo2_num_shadow = lv_label_create(root);
+	lv_obj_align(label_spo2_num_shadow, LV_ALIGN_CENTER, 2, 56);
+
 	label_spo2_num = lv_label_create(root);
 	lv_obj_align(label_spo2_num, LV_ALIGN_CENTER, 0, 54);
 
+	label_spo2_pct_shadow = lv_label_create(root);
 	label_spo2_pct = lv_label_create(root);
 
 	animate_spo2_to(spo2_value, 420);
@@ -610,20 +704,24 @@ static lv_obj_t *create(lv_obj_t *parent)
 	lv_obj_set_style_text_color(label_btn, lv_color_hex(0xFF7A4D), 0);
 	lv_obj_center(label_btn);
 
-	/* ═══════════════ 设置初始动画状态 (对齐之后) ═══════════════ */
+	/* ═══════════════ 设置初始动画状态 ═══════════════ */
 
 	lv_obj_set_style_translate_x(heart_icon, -80, 0);
 	lv_obj_set_style_transform_scale(heart_icon, 210, 0);
+	lv_obj_set_style_translate_x(label_hr_shadow, -120, 0);
 	lv_obj_set_style_translate_x(label_hr, -120, 0);
+	lv_obj_set_style_translate_x(label_bpm_shadow, -120, 0);
 	lv_obj_set_style_translate_x(label_bpm, -120, 0);
 
 	lv_obj_set_style_translate_x(spo2_icon, 160, 0);
+	lv_obj_set_style_translate_x(label_spo2_num_shadow, 160, 0);
 	lv_obj_set_style_translate_x(label_spo2_num, 160, 0);
+	lv_obj_set_style_translate_x(label_spo2_pct_shadow, 160, 0);
 	lv_obj_set_style_translate_x(label_spo2_pct, 160, 0);
 	lv_obj_set_style_translate_y(btn_spo2, 40, 0);
 	lv_obj_set_style_opa(btn_spo2, 0, 0);
 
-		/* ═══════════════ 入场动画 ═══════════════ */
+	/* ═══════════════ 入场动画 ═══════════════ */
 
 	lv_anim_t a;
 
@@ -644,10 +742,10 @@ static lv_obj_t *create(lv_obj_t *parent)
 	lv_anim_set_path_cb(&a, lv_anim_path_ease_out);
 	lv_anim_start(&a);
 
-	/* ═══ 上半区：左→右依次弹入 (单位→数据→图标) ═══ */
+	/* ═══ 上半区：左→右依次弹入 ═══ */
 
-	/* label_bpm "bpm" — t=200ms */
-	lv_anim_set_var(&a, label_bpm);
+	/* label_bpm shadow + label_bpm */
+	lv_anim_set_var(&a, label_bpm_shadow);
 	lv_anim_set_values(&a, -120, 0);
 	lv_anim_set_exec_cb(&a, translate_x_cb);
 	lv_anim_set_duration(&a, 360);
@@ -655,54 +753,46 @@ static lv_obj_t *create(lv_obj_t *parent)
 	lv_anim_set_path_cb(&a, lv_anim_path_overshoot);
 	lv_anim_start(&a);
 
-	/* label_hr "75" — t=280ms */
-	lv_anim_set_var(&a, label_hr);
-	lv_anim_set_values(&a, -120, 0);
-	lv_anim_set_exec_cb(&a, translate_x_cb);
-	lv_anim_set_duration(&a, 360);
-	lv_anim_set_delay(&a, 280);
-	lv_anim_set_path_cb(&a, lv_anim_path_overshoot);
+	lv_anim_set_var(&a, label_bpm);
 	lv_anim_start(&a);
 
-	/* heart_icon — t=360ms */
+	/* label_hr shadow + label_hr */
+	lv_anim_set_var(&a, label_hr_shadow);
+	lv_anim_set_values(&a, -120, 0);
+	lv_anim_set_delay(&a, 280);
+	lv_anim_start(&a);
+
+	lv_anim_set_var(&a, label_hr);
+	lv_anim_start(&a);
+
+	/* heart_icon */
 	lv_anim_set_var(&a, heart_icon);
 	lv_anim_set_values(&a, -80, 0);
-	lv_anim_set_exec_cb(&a, translate_x_cb);
-	lv_anim_set_duration(&a, 360);
 	lv_anim_set_delay(&a, 360);
-	lv_anim_set_path_cb(&a, lv_anim_path_overshoot);
 	lv_anim_start(&a);
 
-	/* ═══ 下半区：右→左依次弹入 (图标→数据→单位→按钮) ═══ */
+	/* ═══ 下半区：右→左依次弹入 ═══ */
 
-	/* spo2_icon — t=200ms */
 	lv_anim_set_var(&a, spo2_icon);
 	lv_anim_set_values(&a, 160, 0);
-	lv_anim_set_exec_cb(&a, translate_x_cb);
-	lv_anim_set_duration(&a, 360);
 	lv_anim_set_delay(&a, 200);
-	lv_anim_set_path_cb(&a, lv_anim_path_overshoot);
 	lv_anim_start(&a);
 
-	/* label_spo2_num "98" — t=280ms */
-	lv_anim_set_var(&a, label_spo2_num);
-	lv_anim_set_values(&a, 160, 0);
-	lv_anim_set_exec_cb(&a, translate_x_cb);
-	lv_anim_set_duration(&a, 360);
+	lv_anim_set_var(&a, label_spo2_num_shadow);
 	lv_anim_set_delay(&a, 280);
-	lv_anim_set_path_cb(&a, lv_anim_path_overshoot);
 	lv_anim_start(&a);
 
-	/* label_spo2_pct "%" — t=360ms */
-	lv_anim_set_var(&a, label_spo2_pct);
-	lv_anim_set_values(&a, 160, 0);
-	lv_anim_set_exec_cb(&a, translate_x_cb);
-	lv_anim_set_duration(&a, 360);
+	lv_anim_set_var(&a, label_spo2_num);
+	lv_anim_start(&a);
+
+	lv_anim_set_var(&a, label_spo2_pct_shadow);
 	lv_anim_set_delay(&a, 360);
-	lv_anim_set_path_cb(&a, lv_anim_path_overshoot);
 	lv_anim_start(&a);
 
-	/* btn_spo2 — 等上下半区弹入完成后，从下方上浮弹入 */
+	lv_anim_set_var(&a, label_spo2_pct);
+	lv_anim_start(&a);
+
+	/* btn_spo2 */
 	lv_anim_set_var(&a, btn_spo2);
 	lv_anim_set_values(&a, 40, 0);
 	lv_anim_set_exec_cb(&a, translate_y_cb);
