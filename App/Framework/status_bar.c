@@ -20,13 +20,13 @@ void status_bar_create(lv_obj_t *parent)
     /* center: time */
     label_time = lv_label_create(bar);
     lv_obj_set_style_text_font(label_time, &lv_font_montserrat_14, 0);
-    lv_obj_set_style_text_color(label_time, lv_color_black(), 0);
+    lv_obj_set_style_text_color(label_time, lv_color_white(), 0);
     lv_obj_align(label_time, LV_ALIGN_CENTER, 0, 0);
 
     /* right: battery percent */
     label_battery = lv_label_create(bar);
     lv_obj_set_style_text_font(label_battery, &lv_font_montserrat_14, 0);
-    lv_obj_set_style_text_color(label_battery, lv_color_black(), 0);
+    lv_obj_set_style_text_color(label_battery, lv_color_white(), 0);
     lv_obj_align(label_battery, LV_ALIGN_RIGHT_MID, -36, 0);
 
     /* right: battery ring, placed directly on bar (no flex wrapper) */
@@ -38,8 +38,8 @@ void status_bar_create(lv_obj_t *parent)
     lv_obj_set_style_border_width(arc_battery, 0, 0);
     lv_obj_set_style_arc_width(arc_battery, 2, LV_PART_MAIN);
     lv_obj_set_style_arc_width(arc_battery, 2, LV_PART_INDICATOR);
-    lv_obj_set_style_arc_color(arc_battery, lv_color_hex(0xCCCCCC), LV_PART_MAIN);
-    lv_obj_set_style_arc_color(arc_battery, lv_color_black(), LV_PART_INDICATOR);
+    lv_obj_set_style_arc_color(arc_battery, lv_color_hex(0x333333), LV_PART_MAIN);
+    lv_obj_set_style_arc_color(arc_battery, lv_color_hex(0x3EE8B6), LV_PART_INDICATOR);
     lv_obj_set_style_arc_rounded(arc_battery, false, LV_PART_MAIN);
     lv_obj_set_style_arc_rounded(arc_battery, false, LV_PART_INDICATOR);
     lv_obj_set_style_bg_opa(arc_battery, LV_OPA_TRANSP, LV_PART_KNOB);

@@ -95,11 +95,6 @@ static void spo2_roll_cb(void *var, int32_t v) {
 
 /* ==================== 辅助函数 ==================== */
 
-static void set_spo2_shadow_font(void)
-{
-	lv_obj_set_style_text_font(label_spo2_num_shadow, lv_obj_get_style_text_font(label_spo2_num, 0), 0);
-}
-
 static void align_spo2_shadows(void)
 {
 	lv_obj_align_to(label_spo2_num_shadow, label_spo2_num, LV_ALIGN_TOP_LEFT, 2, 2);

@@ -20,7 +20,7 @@
  *  心率
  * ================================================================ */
 #if USE_FAKE_DATA
-    int32_t watch_data_get_heart_rate(void) { return 75; }
+    int32_t watch_data_get_heart_rate(void) { return 120; }
 #endif
 
 /* ================================================================

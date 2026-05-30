@@ -34,6 +34,13 @@ extern const page_t page_app_alarm;
 extern const page_t page_app_calculator;
 extern const page_t page_app_flashlight;
 extern const page_t page_app_settings;
+extern const page_t page_app_heartrate;
+extern const page_t page_app_heartrate_detail;
+extern const page_t page_app_spo2;
+extern const page_t page_app_spo2_detail;
+extern const page_t page_app_activity_detail;
+extern const page_t page_app_environment_detail;
+extern const page_t page_app_environment_pressure_detail;
 
 const page_t *g_pages[PAGE_COUNT] = {
     [PAGE_WATCHFACE]       = &page_watchface,
@@ -65,6 +72,13 @@ const page_t *g_pages[PAGE_COUNT] = {
     [PAGE_APP_CALCULATOR]  = &page_app_calculator,
     [PAGE_APP_FLASHLIGHT]  = &page_app_flashlight,
     [PAGE_APP_SETTINGS]    = &page_app_settings,
+    [PAGE_APP_HEARTRATE]         = &page_app_heartrate,
+    [PAGE_APP_HEARTRATE_DETAIL]  = &page_app_heartrate_detail,
+    [PAGE_APP_SPO2]              = &page_app_spo2,
+    [PAGE_APP_SPO2_DETAIL]       = &page_app_spo2_detail,
+    [PAGE_APP_ACTIVITY_DETAIL]      = &page_app_activity_detail,
+    [PAGE_APP_ENVIRONMENT_DETAIL]            = &page_app_environment_detail,
+    [PAGE_APP_ENVIRONMENT_PRESSURE_DETAIL]   = &page_app_environment_pressure_detail,
 };
 
 const page_t *pages_config_get(page_id_t id)

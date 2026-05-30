@@ -16,6 +16,11 @@ void gesture_set_intercept(gesture_intercept_cb_t cb)
     g_intercept = cb;
 }
 
+gesture_intercept_cb_t gesture_get_intercept(void)
+{
+    return g_intercept;
+}
+
 bool gesture_was_recent(void)
 {
     return (lv_tick_get() - g_last_gesture_tick) < 300;
