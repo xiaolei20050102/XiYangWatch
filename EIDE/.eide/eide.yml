@@ -67,8 +67,6 @@ virtualFolder:
                 - path: ../App/Images/Icons/counter_32.c
                 - path: ../App/Images/Icons/flashlight_32.c
                 - path: ../App/Images/Icons/set_32.c
-                - path: ../App/Images/Icons/Flashlight_Off.c
-                - path: ../App/Images/Icons/Flashlight_On.c
                 - path: ../App/Images/Icons/aixin_16.c
                 - path: ../App/Images/Icons/cexinlv_aixin_64.c
                 - path: ../App/Images/Icons/xueyang_64.c
@@ -81,6 +79,17 @@ virtualFolder:
                 - path: ../App/Images/Icons/huoyueshijian_16.c
                 - path: ../App/Images/Icons/huwai_32.c
                 - path: ../App/Images/Icons/huwai_16.c
+                - path: ../App/Images/Icons/taiwanliangping_32.c
+                - path: ../App/Images/Icons/pingmuliangdu_32.c
+                - path: ../App/Images/Icons/lanya_32.c
+                - path: ../App/Images/Icons/guanyv_32.c
+                - path: ../App/Images/Icons/lanya_line_32.c
+                - path: ../App/Images/Icons/wurao_line_32.c
+                - path: ../App/Images/Icons/jieneng_line_32.c
+                - path: ../App/Images/Icons/taiwanliangping_line_32.c
+                - path: ../App/Images/Icons/taiwan_line_32.c
+                - path: ../App/Images/Icons/shoudiantong_line_32.c
+                - path: ../App/Images/Icons/shezhi_line_32.c
               folders: []
         - name: Pages
           files:
@@ -106,6 +115,7 @@ virtualFolder:
             - path: ../App/Pages/page_altimeter.c
             - path: ../App/Pages/page_climate.c
             - path: ../App/Pages/page_app_stubs.c
+            - path: ../App/Pages/page_app_settings.c
             - path: ../App/Pages/page_app_calculator.c
             - path: ../App/Pages/page_app_flashlight.c
             - path: ../App/Pages/page_app_health.c
@@ -177,7 +187,6 @@ virtualFolder:
             - path: ../Middlewares/LVGL/porting/lv_port_disp.h
             - path: ../Middlewares/LVGL/porting/lv_port_indev.h
             - path: ../Middlewares/LVGL/src/lv_init.c
-            - path: ../Middlewares/LVGL/fonts/cascadia_mono_16_1bpp.c
             - path: ../Middlewares/LVGL/fonts/rubik_bold_68_digits.c
             - path: ../Middlewares/LVGL/fonts/montserrat_48_digits.c
           folders: []

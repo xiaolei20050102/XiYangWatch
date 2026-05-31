@@ -8,6 +8,7 @@ typedef enum {
     TRANS_FROM_RIGHT,
     TRANS_FROM_LEFT,
     TRANS_FROM_BOTTOM,
+    TRANS_FROM_TOP,
     TRANS_FADE,
 } trans_dir_t;
 
@@ -21,11 +22,13 @@ static inline trans_dir_t trans_backward(spoke_dir_t spoke) {
 
 static page_state_t  g_state;
 static page_id_t     g_overlay_stack[OVERLAY_STACK_MAX];
+static trans_dir_t   g_overlay_exit_dir[OVERLAY_STACK_MAX];
 static int32_t       g_overlay_depth;
 static lv_obj_t     *g_current_page;
 static page_id_t     g_active_page;
 static spoke_dir_t   g_entry_dir;
 static int32_t       g_spoke_position;
+static bool          g_is_pop_to_top;
 
 /* ── transition state ── */
 static lv_obj_t *g_old_page;
@@ -121,12 +124,13 @@ static void page_manager_switch_to(page_id_t id, trans_dir_t dir)
     status_bar_bring_to_front();
 
     bool is_bottom = (dir == TRANS_FROM_BOTTOM);
+    bool is_top    = (dir == TRANS_FROM_TOP);
     bool is_fade   = (dir == TRANS_FADE);
-    int32_t new_start  = is_bottom ? 280 : ((dir == TRANS_FROM_RIGHT) ?  240 : -240);
-    int32_t old_end    = is_bottom ? 0   : ((dir == TRANS_FROM_RIGHT) ? -240 :  240);
+    int32_t new_start  = is_top ? -280 : (is_bottom ? 280 : ((dir == TRANS_FROM_RIGHT) ? 240 : -240));
+    int32_t old_end    = is_top ? -280 : (is_bottom ? 0   : ((dir == TRANS_FROM_RIGHT) ? -240 : 240));
 
     /* position new page offscreen */
-    if (is_bottom)
+    if (is_bottom || is_top)
         lv_obj_set_style_translate_y(g_current_page, new_start, 0);
     else if (!is_fade)
         lv_obj_set_style_translate_x(g_current_page, new_start, 0);
@@ -146,7 +150,17 @@ static void page_manager_switch_to(page_id_t id, trans_dir_t dir)
         lv_anim_set_completed_cb(&a_entrance, trans_entrance_done_cb);
         lv_anim_start(&a_entrance);
 
-        /* old page: fade out in place */
+        /* old page: fade out in place (or slide up when popping to top) */
+        if (g_is_pop_to_top) {
+            lv_anim_init(&a_exit);
+            lv_anim_set_var(&a_exit, g_old_page);
+            lv_anim_set_values(&a_exit, 0, -280);
+            lv_anim_set_exec_cb(&a_exit, trans_translate_y_cb);
+            lv_anim_set_path_cb(&a_exit, lv_anim_path_ease_in);
+            lv_anim_set_duration(&a_exit, 280);
+            lv_anim_set_completed_cb(&a_exit, trans_complete_cb);
+            lv_anim_start(&a_exit);
+        }
         lv_anim_init(&a_fade);
         lv_anim_set_var(&a_fade, g_old_page);
         lv_anim_set_values(&a_fade, LV_OPA_COVER, LV_OPA_TRANSP);
@@ -160,14 +174,14 @@ static void page_manager_switch_to(page_id_t id, trans_dir_t dir)
         lv_anim_init(&a_entrance);
         lv_anim_set_var(&a_entrance, g_current_page);
         lv_anim_set_values(&a_entrance, new_start, 0);
-        lv_anim_set_exec_cb(&a_entrance, is_bottom ? trans_translate_y_cb : trans_translate_cb);
+        lv_anim_set_exec_cb(&a_entrance, (is_bottom || is_top) ? trans_translate_y_cb : trans_translate_cb);
         lv_anim_set_duration(&a_entrance, 280);
         lv_anim_set_path_cb(&a_entrance, lv_anim_path_overshoot);
         lv_anim_set_completed_cb(&a_entrance, trans_entrance_done_cb);
         lv_anim_start(&a_entrance);
 
         /* old page: translate + fade out */
-        if (is_bottom) {
+        if (is_bottom || is_top) {
             lv_anim_init(&a_fade);
             lv_anim_set_var(&a_fade, g_old_page);
             lv_anim_set_values(&a_fade, LV_OPA_COVER, LV_OPA_TRANSP);
@@ -272,6 +286,7 @@ void page_manager_push(page_id_t id)
 {
     if (g_in_transition) return;
     if (g_overlay_depth >= OVERLAY_STACK_MAX) return;
+    g_overlay_exit_dir[g_overlay_depth] = TRANS_FROM_LEFT;
     g_overlay_stack[g_overlay_depth++] = g_active_page;
     page_manager_switch_to(id, TRANS_FROM_RIGHT);
     g_state = STATE_AT_OVERLAY;
@@ -281,6 +296,7 @@ void page_manager_push_up(page_id_t id)
 {
     if (g_in_transition) return;
     if (g_overlay_depth >= OVERLAY_STACK_MAX) return;
+    g_overlay_exit_dir[g_overlay_depth] = TRANS_FROM_BOTTOM;
     g_overlay_stack[g_overlay_depth++] = g_active_page;
     page_manager_switch_to(id, TRANS_FROM_BOTTOM);
     g_state = STATE_AT_OVERLAY;
@@ -290,8 +306,19 @@ void page_manager_push_fade(page_id_t id)
 {
     if (g_in_transition) return;
     if (g_overlay_depth >= OVERLAY_STACK_MAX) return;
+    g_overlay_exit_dir[g_overlay_depth] = TRANS_FADE;
     g_overlay_stack[g_overlay_depth++] = g_active_page;
     page_manager_switch_to(id, TRANS_FADE);
+    g_state = STATE_AT_OVERLAY;
+}
+
+void page_manager_push_down(page_id_t id)
+{
+    if (g_in_transition) return;
+    if (g_overlay_depth >= OVERLAY_STACK_MAX) return;
+    g_overlay_exit_dir[g_overlay_depth] = TRANS_FROM_TOP;
+    g_overlay_stack[g_overlay_depth++] = g_active_page;
+    page_manager_switch_to(id, TRANS_FROM_TOP);
     g_state = STATE_AT_OVERLAY;
 }
 
@@ -300,13 +327,18 @@ void page_manager_pop(gesture_t g)
     if (g_in_transition) return;
     if (g_overlay_depth == 0) return;
     g_overlay_depth--;
-    /* 退回 overlay（如菜单）→ 原地淡入淡出；退回 hub → 顺着手势滑动 */
+    trans_dir_t exit_dir = g_overlay_exit_dir[g_overlay_depth];
     trans_dir_t dir;
-    if (g_overlay_depth > 0)
+    if (exit_dir == TRANS_FROM_TOP && g == GESTURE_UP) {
+        g_is_pop_to_top = true;
         dir = TRANS_FADE;
-    else
+    } else if (g_overlay_depth > 0) {
+        dir = TRANS_FADE;
+    } else {
         dir = (g == GESTURE_LEFT) ? TRANS_FROM_RIGHT : TRANS_FROM_LEFT;
+    }
     page_manager_switch_to(g_overlay_stack[g_overlay_depth], dir);
+    g_is_pop_to_top = false;
     g_state = (g_overlay_depth > 0) ? STATE_AT_OVERLAY : STATE_AT_HUB;
 }
 

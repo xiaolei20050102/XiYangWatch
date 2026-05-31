@@ -54,8 +54,8 @@ void gesture_feed(gesture_t g)
     case STATE_AT_HUB:
         if (g == GESTURE_LEFT)       { page_manager_go_spoke(SPOKE_LEFT);  handled = true; }
         else if (g == GESTURE_RIGHT) { page_manager_go_spoke(SPOKE_RIGHT); handled = true; }
-        else if (g == GESTURE_UP)    { page_manager_push_up(PAGE_MENU);    handled = true; }
-        else if (g == GESTURE_DOWN)  { page_manager_go_spoke(SPOKE_DOWN);  handled = true; }
+        else if (g == GESTURE_UP)    { page_manager_push_up(PAGE_MENU);            handled = true; }
+        else if (g == GESTURE_DOWN)  { page_manager_push_down(PAGE_CONTROL_CENTER); handled = true; }
         else if (g == GESTURE_LONGPRESS) { page_manager_push(PAGE_WATCHFACE_SEL); handled = true; }
         break;
 

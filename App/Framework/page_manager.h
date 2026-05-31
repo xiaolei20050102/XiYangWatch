@@ -26,6 +26,7 @@ void page_manager_spoke_prev(void);
 void page_manager_push(page_id_t id);
 void page_manager_push_up(page_id_t id);
 void page_manager_push_fade(page_id_t id);
+void page_manager_push_down(page_id_t id);
 void page_manager_pop(gesture_t g);
 void page_manager_update(void);
 page_state_t page_manager_get_state(void);

@@ -14,4 +14,3 @@ static lv_obj_t *empty_create(lv_obj_t *parent)
 const page_t page_app_focus       = { "focus",       PAGE_TYPE_OVERLAY, empty_create, NULL, NULL };
 
 
-const page_t page_app_settings    = { "settings",    PAGE_TYPE_OVERLAY, empty_create, NULL, NULL };

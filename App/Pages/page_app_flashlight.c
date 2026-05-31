@@ -2,24 +2,22 @@
 #include "../Framework/gesture.h"
 
 static lv_obj_t *root;
-static lv_obj_t *icon;
+static lv_obj_t *label;
 static bool is_on;
-
-extern const lv_image_dsc_t Flashlight_Off;
-extern const lv_image_dsc_t Flashlight_On;
 
 static void click_cb(lv_event_t *e)
 {
     if (gesture_was_recent()) return;
     is_on = !is_on;
     if (is_on) {
-        lv_image_set_src(icon, &Flashlight_On);
+        lv_label_set_text(label, "ON");
+        lv_obj_set_style_text_color(label, lv_color_black(), 0);
         lv_obj_set_style_bg_color(root, lv_color_white(), 0);
     } else {
-        lv_image_set_src(icon, &Flashlight_Off);
+        lv_label_set_text(label, "OFF");
+        lv_obj_set_style_text_color(label, lv_color_white(), 0);
         lv_obj_set_style_bg_color(root, lv_color_black(), 0);
     }
-    lv_obj_move_foreground(icon);
 }
 
 static lv_obj_t *create(lv_obj_t *parent)
@@ -31,9 +29,11 @@ static lv_obj_t *create(lv_obj_t *parent)
     lv_obj_set_style_bg_color(root, lv_color_black(), 0);
     lv_obj_set_style_bg_opa(root, LV_OPA_COVER, 0);
 
-    icon = lv_image_create(root);
-    lv_image_set_src(icon, &Flashlight_Off);
-    lv_obj_align(icon, LV_ALIGN_CENTER, 0, 0);
+    label = lv_label_create(root);
+    lv_label_set_text(label, "OFF");
+    lv_obj_set_style_text_font(label, &lv_font_montserrat_28, 0);
+    lv_obj_set_style_text_color(label, lv_color_white(), 0);
+    lv_obj_align(label, LV_ALIGN_CENTER, 0, 0);
 
     lv_obj_add_flag(root, LV_OBJ_FLAG_CLICKABLE);
     lv_obj_add_event_cb(root, click_cb, LV_EVENT_CLICKED, NULL);
