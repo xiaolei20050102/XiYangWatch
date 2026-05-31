@@ -13,6 +13,7 @@ static lv_obj_t *label_btn;
 static lv_timer_t *measure_timer;
 static lv_timer_t *refresh_timer;
 static bool measuring;
+static bool s_swiping;
 
 /* ── 测量覆盖层 ── */
 static lv_obj_t   *overlay;
@@ -313,6 +314,7 @@ static void build_overlay(void)
 static void on_measure_click(lv_event_t *e)
 {
     (void)e;
+    if (s_swiping) { s_swiping = false; return; }
     if (measuring) return;
     measuring = true;
 
@@ -343,6 +345,7 @@ static bool gesture_intercept(gesture_t g)
 {
     if (measuring) return true;
     if (g == GESTURE_UP) {
+        s_swiping = true;
         page_manager_push_up(PAGE_APP_SPO2_DETAIL);
         return true;
     }

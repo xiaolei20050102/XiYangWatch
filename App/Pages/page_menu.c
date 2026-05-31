@@ -44,6 +44,7 @@ static lv_obj_t *list;
 static lv_obj_t *rows[ITEM_COUNT];
 static lv_obj_t *divs[ITEM_COUNT - 1];
 static lv_timer_t *sb_timer;
+static int32_t saved_scroll_y;
 
 /* ── 滚动条 淡入/淡出 ── */
 static void sb_opa_cb(void *var, int32_t v)
@@ -125,7 +126,9 @@ static lv_obj_t *create(lv_obj_t *parent)
     lv_obj_set_flex_flow(list, LV_FLEX_FLOW_COLUMN);
     lv_obj_set_flex_align(list, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
 
-    #define DIV_W (LIST_W - LIST_PAD * 2 - 52)  /* 156: from icon-right to row-right */
+    #define DIV_W   (LIST_W - LIST_PAD * 2 - 52)  /* 156: from icon-right to row-right */
+    bool returning = (saved_scroll_y > 0);
+
     for (int i = 0; i < ITEM_COUNT; i++) {
         lv_obj_t *row = lv_obj_create(list);
         lv_obj_set_size(row, LIST_W - LIST_PAD * 2, ITEM_H);
@@ -158,7 +161,7 @@ static lv_obj_t *create(lv_obj_t *parent)
         lv_obj_add_event_cb(row, item_click_cb, LV_EVENT_CLICKED,
                             (void *)(uintptr_t)items[i].target);
 
-        /* start hidden: offset below + transparent */
+        /* 首次进入：初始偏移+透明，等入场动画；返回时同样初始状态 */
         lv_obj_set_style_translate_y(row, 35, 0);
         lv_obj_set_style_opa(row, LV_OPA_TRANSP, 0);
         rows[i] = row;
@@ -173,6 +176,7 @@ static lv_obj_t *create(lv_obj_t *parent)
             lv_obj_set_style_bg_opa(div, LV_OPA_COVER, 0);
             lv_obj_set_style_radius(div, 0, 0);
             lv_obj_set_style_translate_x(div, (LIST_W - LIST_PAD * 2 - DIV_W) / 2, 0);
+            lv_obj_set_style_translate_y(div, 35, 0);
             lv_obj_set_style_opa(div, LV_OPA_TRANSP, 0);
             divs[i] = div;
         }
@@ -185,33 +189,55 @@ static lv_obj_t *create(lv_obj_t *parent)
         lv_obj_set_height(list, content_h);
     }
 
-    /* staggered entrance: each row slides up + fades in with cascading delay */
-    for (int i = 0; i < ITEM_COUNT; i++) {
-        uint32_t delay = 200 + i * 80;
+    /* 级联入场动画 */
+    {
+        int center_idx;
+        if (returning) {
+            /* 返回时：以可见中心为基准，向外扩散 */
+            center_idx = (saved_scroll_y + lv_obj_get_content_height(list) / 2) / ITEM_H;
+        } else {
+            /* 首次：从顶部向下级联 */
+            center_idx = 0;
+        }
+        for (int i = 0; i < ITEM_COUNT; i++) {
+            uint32_t delay = returning
+                ? (uint32_t)(50 + LV_ABS(i - center_idx) * 60)
+                : (uint32_t)(200 + i * 100);
 
-        lv_anim_t a;
-        lv_anim_init(&a);
-        lv_anim_set_var(&a, rows[i]);
-        lv_anim_set_values(&a, 35, 0);
-        lv_anim_set_exec_cb(&a, row_translate_cb);
-        lv_anim_set_duration(&a, 350);
-        lv_anim_set_delay(&a, delay);
-        lv_anim_set_path_cb(&a, lv_anim_path_ease_out);
-        lv_anim_start(&a);
+            lv_anim_t a;
+            lv_anim_init(&a);
+            lv_anim_set_var(&a, rows[i]);
+            lv_anim_set_values(&a, 35, 0);
+            lv_anim_set_exec_cb(&a, row_translate_cb);
+            lv_anim_set_duration(&a, 350);
+            lv_anim_set_delay(&a, delay);
+            lv_anim_set_path_cb(&a, lv_anim_path_ease_out);
+            lv_anim_start(&a);
 
-        lv_anim_set_values(&a, LV_OPA_TRANSP, LV_OPA_COVER);
-        lv_anim_set_exec_cb(&a, row_opa_cb);
-        lv_anim_set_duration(&a, 280);
-        lv_anim_start(&a);
-
-        /* divider fades in with the same delay */
-        if (i < ITEM_COUNT - 1) {
-            lv_anim_set_var(&a, divs[i]);
             lv_anim_set_values(&a, LV_OPA_TRANSP, LV_OPA_COVER);
             lv_anim_set_exec_cb(&a, row_opa_cb);
             lv_anim_set_duration(&a, 280);
             lv_anim_start(&a);
+
+            /* divider slides up + fades in */
+            if (i < ITEM_COUNT - 1) {
+                lv_anim_set_var(&a, divs[i]);
+                lv_anim_set_values(&a, 35, 0);
+                lv_anim_set_exec_cb(&a, row_translate_cb);
+                lv_anim_set_duration(&a, 350);
+                lv_anim_start(&a);
+
+                lv_anim_set_values(&a, LV_OPA_TRANSP, LV_OPA_COVER);
+                lv_anim_set_exec_cb(&a, row_opa_cb);
+                lv_anim_set_duration(&a, 280);
+                lv_anim_start(&a);
+            }
         }
+    }
+
+    /* 恢复上次滚动位置 */
+    if (saved_scroll_y > 0) {
+        lv_obj_scroll_to_y(list, saved_scroll_y, LV_ANIM_OFF);
     }
 
     return root;
@@ -219,6 +245,7 @@ static lv_obj_t *create(lv_obj_t *parent)
 
 static void destroy(void)
 {
+    saved_scroll_y = lv_obj_get_scroll_y(list);
     if (sb_timer) { lv_timer_delete(sb_timer); sb_timer = NULL; }
 }
 static void update(void) {}

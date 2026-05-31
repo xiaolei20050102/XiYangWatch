@@ -59,10 +59,8 @@ virtualFolder:
                 - path: ../App/Images/Icons/new_temperature_32.c
                 - path: ../App/Images/Icons/humidity_32.c
                 - path: ../App/Images/Icons/activity_32.c
-                - path: ../App/Images/Icons/health_32.c
                 - path: ../App/Images/Icons/heart_rate_32.c
                 - path: ../App/Images/Icons/blood_oxygen_32.c
-                - path: ../App/Images/Icons/environment_32.c
                 - path: ../App/Images/Icons/concentration_32.c
                 - path: ../App/Images/Icons/second_chronograph_32.c
                 - path: ../App/Images/Icons/alarm_clock_32.c
@@ -76,10 +74,8 @@ virtualFolder:
                 - path: ../App/Images/Icons/xueyang_64.c
                 - path: ../App/Images/Icons/aixin_32.c
                 - path: ../App/Images/Icons/aixin_line_32.c
-                - path: ../App/Images/Icons/battery_outline.c
                 - path: ../App/Images/Icons/bushu_16.c
                 - path: ../App/Images/Icons/yundongxie_32.c
-                - path: ../App/Images/Icons/haiba_16.c
                 - path: ../App/Images/Icons/mubiao_16.c
                 - path: ../App/Images/Icons/jvli_16.c
                 - path: ../App/Images/Icons/huoyueshijian_16.c
@@ -182,9 +178,7 @@ virtualFolder:
             - path: ../Middlewares/LVGL/porting/lv_port_indev.h
             - path: ../Middlewares/LVGL/src/lv_init.c
             - path: ../Middlewares/LVGL/fonts/cascadia_mono_16_1bpp.c
-            - path: ../Middlewares/LVGL/fonts/rubik_bold_100_digits.c
             - path: ../Middlewares/LVGL/fonts/rubik_bold_68_digits.c
-            - path: ../Middlewares/LVGL/fonts/rubik_bold_85_digits.c
             - path: ../Middlewares/LVGL/fonts/montserrat_48_digits.c
           folders: []
     - name: BSP
