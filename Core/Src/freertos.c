@@ -30,7 +30,7 @@
 #include "lv_port_indev.h"
 #include "app.h"
 #include "Framework/gesture.h"
-
+#include "diag_task.h"
 /* 前向声明：避开 touch_cst816s.h 与 gesture.h 的枚举名冲突 */
 extern uint8_t CST816_GetGesture(void);
 /* USER CODE END Includes */
@@ -68,6 +68,14 @@ const osThreadAttr_t lvglTask_attributes = {
   .name = "lvglTask",
   .stack_size = 3072 * 4,
   .priority = (osPriority_t) osPriorityNormal,
+};
+
+/* Definitions for DiagTask */
+osThreadId_t diagTaskHandle;
+const osThreadAttr_t diagTask_attributes = {
+  .name = "diagTask",
+  .stack_size = 64 * 4,
+  .priority = (osPriority_t) osPriorityLow,
 };
 
 /* Private function prototypes -----------------------------------------------*/
@@ -113,6 +121,8 @@ void MX_FREERTOS_Init(void) {
   /* USER CODE BEGIN RTOS_THREADS */
   /* add threads, ... */
   lvglTaskHandle = osThreadNew(StartLvglTask, NULL, &lvglTask_attributes);
+  diagTaskHandle = osThreadNew(DiagTask, NULL, &diagTask_attributes);
+
   /* USER CODE END RTOS_THREADS */
 
   /* USER CODE BEGIN RTOS_EVENTS */
@@ -144,11 +154,6 @@ void StartLvglTask(void *argument)
   lv_init();
   lv_port_disp_init();
   lv_port_indev_init();
-
-  extern const lv_font_t cascadia_mono_16_1bpp;
-
-  lv_theme_t * th = lv_theme_mono_init(lv_display_get_default(), true, &cascadia_mono_16_1bpp);
-  lv_display_set_theme(lv_display_get_default(), th);
 
   app_init();
 
