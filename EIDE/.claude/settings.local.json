@@ -31,7 +31,17 @@
       "Bash(npx lv_font_conv --font \"C:/Windows/Fonts/CascadiaMono.ttf\" --format lvgl --bpp 1 --size 20 --range 0x20-0x7F -o \"e:/XiYangWatch/XiYang_Watch/Middlewares/LVGL/fonts/cascadia_mono_20_1bpp.c\")",
       "Bash(npx lv_font_conv --font \"C:/Windows/Fonts/CascadiaMono.ttf\" --format lvgl --bpp 1 --size 16 --range 0x20-0x7F -o \"e:/XiYangWatch/XiYang_Watch/Middlewares/LVGL/fonts/cascadia_mono_16_1bpp.c\")",
       "Bash(git config *)",
-      "Bash(mkdir -p \"E:/XiYangWatch/XiYang_LVGL_Simulator\")"
+      "Bash(mkdir -p \"E:/XiYangWatch/XiYang_LVGL_Simulator\")",
+      "Bash(python3 -c ' *)",
+      "Bash(git commit -m ' *)",
+      "Bash(git -C \"/e/XiYangWatch/XiYang_Watch\" add BSP/LCD/lcd_st7789.h Core/Inc/FreeRTOSConfig.h Core/Src/freertos.c Core/Src/spi.c Core/Src/dma.c Core/Inc/stm32f4xx_it.h Core/Src/stm32f4xx_it.c Middlewares/LVGL/porting/lv_port_disp.c Core/Src/main.c XiYang_Watch.ioc)",
+      "Bash(git -C /e/XiYangWatch/XiYang_Watch commit -m ' *)",
+      "Bash(git -C \"/e/XiYangWatch/XiYang_Watch\" push)",
+      "Bash(python \"e:/XiYangWatch/XiYang_Watch/App/Images/png_to_wallpaper.py\" \"C:/Users/12272/Desktop/background_haibian1.jpg\")",
+      "Bash(mv \"e:/XiYangWatch/XiYang_Watch/App/Images/Wallpapers/Wallpaper/\"* \"e:/XiYangWatch/XiYang_Watch/App/Images/Wallpapers/\" && rmdir \"e:/XiYangWatch/XiYang_Watch/App/Images/Wallpapers/Wallpaper\" && ls -la \"e:/XiYangWatch/XiYang_Watch/App/Images/Wallpapers/\")",
+      "Bash(cp background_maoni1.c wallpaper.c)",
+      "Bash(sed -i 's/background_maoni1_map/wallpaper_map/g; s/background_maoni1/wallpaper_img/g' wallpaper.c)",
+      "Bash(python png_to_wallpaper.py \"C:/Users/12272/Desktop/background_haibian1.jpg\")"
     ],
     "additionalDirectories": [
       "e:\\XiYangWatch\\XiYang_Watch\\BSP\\LCD",
@@ -40,7 +50,8 @@
       "e:\\XiYangWatch\\XiYang_Watch\\Docs\\learning",
       "e:\\XiYangWatch\\XiYang_Watch\\Middlewares\\LVGL",
       "C:\\Users\\12272\\.claude\\projects\\e--XiYangWatch-XiYang-Watch-EIDE\\memory",
-      "E:\\XiYangWatch"
+      "E:\\XiYangWatch",
+      "e:\\XiYangWatch\\XiYang_Watch\\App\\Images\\Wallpapers\\Wallpaper"
     ]
   }
 }

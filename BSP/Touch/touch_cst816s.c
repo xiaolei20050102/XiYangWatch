@@ -75,8 +75,8 @@ uint8_t CST816_GetFingerNum(void)
  * @brief   读取触摸坐标
  * @param   info  [出] 坐标结构体指针，X/Y 坐标写入其中
  * @retval  无
- * @note    从寄存器 0x03~0x06 连续读取 4 字节，自动叠加 TOUCH_OFFSET_Y
- *          X = (buf[0]&0x0F)<<8 | buf[1]
+ * @note    从寄存器 0x03~0x06 连续读取 4 字节，自动叠加偏移量
+ *          X = (buf[0]&0x0F)<<8 | buf[1] + TOUCH_OFFSET_X
  *          Y = (buf[2]&0x0F)<<8 | buf[3] + TOUCH_OFFSET_Y
  */
 void CST816_GetTouch(Touch_Info_t* info)
@@ -84,8 +84,107 @@ void CST816_GetTouch(Touch_Info_t* info)
     uint8_t buf[4] = {0};
     TOUCH_I2C_READ(REG_XposH, buf, 4);
 
+    info->X_Pos = (((buf[0] & 0x0F) << 8) | buf[1]) + TOUCH_OFFSET_X;
+    info->Y_Pos = (((buf[2] & 0x0F) << 8) | buf[3]) + TOUCH_OFFSET_Y;
+}
+
+/**
+ * @brief   读取原始触摸坐标（不加任何偏移补偿）
+ * @param   info  [出] 坐标结构体指针
+ * @retval  无
+ * @note    与 CST816_GetTouch 的唯一区别：不叠加 TOUCH_OFFSET_Y
+ *          用于校准测量，对比触摸面板原始值和屏幕期望值
+ */
+void CST816_GetTouchRaw(Touch_Info_t* info)
+{
+    uint8_t buf[4] = {0};
+    TOUCH_I2C_READ(REG_XposH, buf, 4);
+
     info->X_Pos = ((buf[0] & 0x0F) << 8) | buf[1];
-    info->Y_Pos = ((buf[2] & 0x0F) << 8) | buf[3] + TOUCH_OFFSET_Y;
+    info->Y_Pos = ((buf[2] & 0x0F) << 8) | buf[3];   /* 不加 TOUCH_OFFSET_Y */
+}
+
+/**
+ * @brief   CST816S 触摸校准：连续 15 秒打印原始坐标，用于测量偏移量
+ * @param   无
+ * @retval  无
+ * @note    通过 UART2 输出，波特率 115200
+ *          手指触摸屏幕四角和中心，串口终端记录各点的原始坐标
+ *          公式：offset = 屏幕坐标 - 原始坐标
+ *          例如：屏幕右上角 (239,0)，原始坐标报 (235,5)
+ *               则 offset_x = 239-235 = 4, offset_y = 0-5 = -5
+ */
+void CST816_Calibrate(void)
+{
+    uint8_t buf[80];
+
+    /* 临时关闭自动休眠，确保校准期间芯片不睡 */
+    uint8_t t = 0;
+    TOUCH_I2C_WRITE(REG_AutoSleepTime, &t, 1);
+
+    /* === 说明 === */
+    {
+        uint8_t msg[] =
+            "\r\n"
+            "╔══════════════════════════════════════╗\r\n"
+            "║     CST816 Touch Calibration         ║\r\n"
+            "╠══════════════════════════════════════╣\r\n"
+            "║ 请依次触摸屏幕四角 + 中心共 5 个点   ║\r\n"
+            "║ 每次按下/抬起会打印原始坐标          ║\r\n"
+            "║                                      ║\r\n"
+            "║ 计算公式：                           ║\r\n"
+            "║ offset_x = 屏幕X - 原始X             ║\r\n"
+            "║ offset_y = 屏幕Y - 原始Y             ║\r\n"
+            "║                                      ║\r\n"
+            "║ 校准持续 15 秒...                    ║\r\n"
+            "╚══════════════════════════════════════╝\r\n"
+            "\r\n";
+        HAL_UART_Transmit(&huart2, msg, strlen((char*)msg), 1000);
+    }
+
+    uint32_t start = HAL_GetTick();
+    uint8_t was_pressed = 0;
+    uint8_t sample_count = 0;
+
+    while (HAL_GetTick() - start < 15000) {
+        uint8_t finger = CST816_GetFingerNum();
+        uint8_t pressed = (finger != 0x00 && finger != 0xFF);
+
+        if (pressed && !was_pressed) {
+            /* 按下 */
+            Touch_Info_t raw;
+            CST816_GetTouchRaw(&raw);
+            sample_count++;
+            sprintf((char*)buf,
+                    "[%02u PRESS ] raw: X=%03u  Y=%03u\r\n",
+                    sample_count, raw.X_Pos, raw.Y_Pos);
+            HAL_UART_Transmit(&huart2, buf, strlen((char*)buf), 1000);
+        } else if (!pressed && was_pressed) {
+            /* 抬起 */
+            sprintf((char*)buf,
+                    "[%02u RELEASE]\r\n", sample_count);
+            HAL_UART_Transmit(&huart2, buf, strlen((char*)buf), 1000);
+        }
+        was_pressed = pressed;
+        TOUCH_DELAY_MS(10);
+    }
+
+    /* === 结果汇总 === */
+    {
+        uint8_t msg[] =
+            "\r\n"
+            "=== 校准结束 ===\r\n"
+            "根据记录的数据计算 offset：\r\n"
+            "  #define TOUCH_OFFSET_X  <你的值>\r\n"
+            "  #define TOUCH_OFFSET_Y  <你的值>\r\n"
+            "修改 touch_cst816s.h 中的宏定义即可。\r\n"
+            "\r\n";
+        HAL_UART_Transmit(&huart2, msg, strlen((char*)msg), 1000);
+    }
+
+    /* 恢复自动休眠 */
+    t = 5;
+    TOUCH_I2C_WRITE(REG_AutoSleepTime, &t, 1);
 }
 
 /**

@@ -269,7 +269,7 @@ static lv_obj_t *create(lv_obj_t *parent)
     lv_obj_set_size(root, 240, 280);
     lv_obj_set_style_pad_all(root, 0, 0);
     lv_obj_set_style_border_width(root, 0, 0);
-    lv_obj_set_style_bg_color(root, lv_color_white(), 0);
+    lv_obj_set_style_bg_color(root, lv_color_black(), 0);
     lv_obj_set_style_bg_opa(root, LV_OPA_COVER, 0);
     lv_obj_remove_flag(root, LV_OBJ_FLAG_SCROLLABLE);
 
@@ -286,14 +286,14 @@ static lv_obj_t *create(lv_obj_t *parent)
 
     display = lv_label_create(disp_cont);
     lv_obj_set_style_text_font(display, &lv_font_montserrat_20, 0);
-    lv_obj_set_style_text_color(display, lv_color_black(), 0);
+    lv_obj_set_style_text_color(display, lv_color_white(), 0);
     lv_obj_set_width(display, LV_SIZE_CONTENT);
 
     /* colors */
-    cd = lv_color_hex(0x181818);
+    cd = lv_color_hex(0x2E2E2E);
     cf = lv_color_hex(0xE8E8E8);
     co = lv_color_hex(0x00C2FF);
-    cb = lv_color_hex(0x262626);
+    cb = lv_color_hex(0x3A3A3A);
 
     /* ── digit pad 3x4 ── */
 #define BW 64
@@ -327,11 +327,11 @@ static lv_obj_t *create(lv_obj_t *parent)
 #define OX(c) (OMG + (c)*(OW + OG))
 #define OY   (280 - OH - 8)
 
-    btn(root, "+", on_op, OX(0), OY, OW, OH, co, lv_color_black(), '+');
-    btn(root, "-", on_op, OX(1), OY, OW, OH, co, lv_color_black(), '-');
-    btn(root, "*", on_op, OX(2), OY, OW, OH, co, lv_color_black(), '*');
-    btn(root, "/", on_op, OX(3), OY, OW, OH, co, lv_color_black(), '/');
-    btn(root, "=", on_eq, OX(4), OY, OW, OH, co, lv_color_black(), 0);
+    btn(root, "+", on_op, OX(0), OY, OW, OH, co, lv_color_white(), '+');
+    btn(root, "-", on_op, OX(1), OY, OW, OH, co, lv_color_white(), '-');
+    btn(root, "*", on_op, OX(2), OY, OW, OH, co, lv_color_white(), '*');
+    btn(root, "/", on_op, OX(3), OY, OW, OH, co, lv_color_white(), '/');
+    btn(root, "=", on_eq, OX(4), OY, OW, OH, co, lv_color_white(), 0);
 
     on_C(NULL);
     gesture_set_intercept(intercept_cb);

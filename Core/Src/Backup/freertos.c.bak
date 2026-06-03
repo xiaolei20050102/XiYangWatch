@@ -25,7 +25,14 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
+#include "lvgl.h"
+#include "lv_port_disp.h"
+#include "lv_port_indev.h"
+#include "app.h"
+#include "Framework/gesture.h"
 
+/* 前向声明：避开 touch_cst816s.h 与 gesture.h 的枚举名冲突 */
+extern uint8_t CST816_GetGesture(void);
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -55,12 +62,21 @@ const osThreadAttr_t defaultTask_attributes = {
   .priority = (osPriority_t) osPriorityNormal,
 };
 
+/* Definitions for LvglTask */
+osThreadId_t lvglTaskHandle;
+const osThreadAttr_t lvglTask_attributes = {
+  .name = "lvglTask",
+  .stack_size = 2048 * 4,
+  .priority = (osPriority_t) osPriorityNormal,
+};
+
 /* Private function prototypes -----------------------------------------------*/
 /* USER CODE BEGIN FunctionPrototypes */
 
 /* USER CODE END FunctionPrototypes */
 
 void StartDefaultTask(void *argument);
+void StartLvglTask(void *argument);
 
 void MX_FREERTOS_Init(void); /* (MISRA C 2004 rule 8.1) */
 
@@ -96,6 +112,7 @@ void MX_FREERTOS_Init(void) {
 
   /* USER CODE BEGIN RTOS_THREADS */
   /* add threads, ... */
+  lvglTaskHandle = osThreadNew(StartLvglTask, NULL, &lvglTask_attributes);
   /* USER CODE END RTOS_THREADS */
 
   /* USER CODE BEGIN RTOS_EVENTS */
@@ -120,6 +137,41 @@ void StartDefaultTask(void *argument)
     osDelay(1);
   }
   /* USER CODE END StartDefaultTask */
+}
+
+void StartLvglTask(void *argument)
+{
+  lv_init();
+  lv_port_disp_init();
+  lv_port_indev_init();
+
+  extern const lv_font_t cascadia_mono_16_1bpp;
+
+  lv_theme_t * th = lv_theme_mono_init(lv_display_get_default(), true, &cascadia_mono_16_1bpp);
+  lv_display_set_theme(lv_display_get_default(), th);
+
+  app_init();
+
+  for(;;)
+  {
+    /* 触摸手势 → 页面导航（必须在 lv_timer_handler 之前，否则 LVGL click 事件会先于手势触发） */
+    uint8_t raw = CST816_GetGesture();
+    gesture_t g = GESTURE_NONE;
+    switch (raw) {
+        case 0x01: g = GESTURE_DOWN;  break;
+        case 0x02: g = GESTURE_UP;    break;
+        case 0x03: g = GESTURE_LEFT;  break;
+        case 0x04: g = GESTURE_RIGHT; break;
+        case 0x0C: g = GESTURE_LONGPRESS; break;
+        /* 0x05 (CLICK) 不进入手势系统，与 PC 模拟器一致，由 LVGL 事件处理 */
+    }
+    gesture_feed(g);
+
+    lv_timer_handler();
+    app_loop();
+
+    vTaskDelay(pdMS_TO_TICKS(5));
+  }
 }
 
 /* Private application code --------------------------------------------------*/

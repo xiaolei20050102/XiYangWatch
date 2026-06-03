@@ -278,12 +278,12 @@ SaveTask     ▌Notify        ▌—           ▌—            ▌—         
 // 只用作二进制通知(无值传递), 值走共享内存
 
 // ——— Message Queues (低频, 不可丢失) ———
-extern QueueHandle_t g_q_ble_msg;        // BtTask → LvglTask, BLE消息
-extern QueueHandle_t g_q_save_req;       // I2CSensTask/BtTask → SaveTask, 存储请求
-extern QueueHandle_t g_q_power_event;    // PowerTask → LvglTask, 电源事件
+extern osMessageQueueId_t g_q_ble_msg;        // BtTask → LvglTask, BLE消息
+extern osMessageQueueId_t g_q_save_req;       // I2CSensTask/BtTask → SaveTask, 存储请求
+extern osMessageQueueId_t g_q_power_event;    // PowerTask → LvglTask, 电源事件
 
 // ——— Event Groups (多任务同步) ———
-extern EventGroupHandle_t g_eg_sleep;    // PowerTask → 全员, 休眠协调
+extern osEventFlagsId_t g_ef_sleep;    // PowerTask → 全员, 休眠协调
 //   bit0: EVT_PREPARE_SLEEP   休眠准备
 //   bit1: ACK_LVGL_READY      LvglTask 就绪
 //   bit2: ACK_I2C_READY       I2CSensTask 就绪
@@ -292,7 +292,7 @@ extern EventGroupHandle_t g_eg_sleep;    // PowerTask → 全员, 休眠协调
 //   bit5: ACK_DIAG_READY      DiagTask 就绪
 //   bit6: EVT_WAKEUP          系统唤醒
 
-extern EventGroupHandle_t g_eg_sys_state; // 系统状态标志
+extern osEventFlagsId_t g_ef_sys_state; // 系统状态标志
 //   bit0: SYS_READY           所有任务就绪
 //   bit1: SYS_OTA_MODE        OTA 模式
 //   bit2: SYS_SAFE_MODE       安全模式
@@ -302,7 +302,7 @@ extern EventGroupHandle_t g_eg_sys_state; // 系统状态标志
 
 ```
 触摸坐标: 每 5ms 一个 (200Hz)
-  走队列: 每次 xQueueSend + xQueueReceive, 拷贝 12 字节, FreeRTOS 内部临界区
+  走队列: 每次 osMessageQueuePut + osMessageQueueGet, 拷贝 12 字节, FreeRTOS 内部临界区
           → 200 次/秒 × 12 字节 × 2 = 4.8KB/秒 无效拷贝
 
   走共享内存: I2CSensTask 写 12 字节到固定地址
@@ -427,7 +427,7 @@ extern volatile shared_mem_t g_shm;
     g_shm.touch.y = raw_y;
     g_shm.touch.pressed = 1;
     __DSB();  // 数据同步屏障, 确保写入完成
-    xTaskNotify(lvgl_task_handle, 0, eNoAction);
+    osThreadFlagsSet(lvglTaskHandle, 0x01);
 
 读取示例 (LvglTask 中):
     touch_data_t t;
@@ -507,8 +507,8 @@ msg.type = BLE_MSG_NOTIFICATION;
 msg.payload_len = len;
 memcpy(msg.payload, data, len);
 
-BaseType_t rc = xQueueSend(g_q_ble_msg, &msg, pdMS_TO_TICKS(100));
-if (rc != pdPASS) {
+BaseType_t rc = xQueueSend(g_q_ble_msg, &msg, 100);
+if (rc != osOK) {
     // 队列满 → 丢弃最老的消息, 插入新的
     ble_msg_t old;
     xQueueReceive(g_q_ble_msg, &old, 0);  // 非阻塞弹出旧消息
@@ -600,7 +600,7 @@ void PowerTask(void *pvParameters)
             break;
         }
 
-        vTaskDelay(pdMS_TO_TICKS(1000));
+        osDelay(1000);
     }
 }
 ```
@@ -611,16 +611,15 @@ void PowerTask(void *pvParameters)
 static void enter_stop_mode(void)
 {
     // ① 广播休眠准备
-    xEventGroupSetBits(g_eg_sleep, EVT_PREPARE_SLEEP);
+    osEventFlagsSet(g_ef_sleep, EVT_PREPARE_SLEEP);
 
     // ② 等待所有任务就绪 (超时 2s, 强制继续)
-    EventBits_t ack = xEventGroupWaitBits(
-        g_eg_sleep,
+    uint32_t ack = osEventFlagsWait(
+        g_ef_sleep,
         ACK_LVGL_READY | ACK_I2C_READY | ACK_BT_READY |
         ACK_SAVE_READY | ACK_DIAG_READY,
-        pdTRUE,   // 读后清零
-        pdTRUE,   // 等待所有位
-        pdMS_TO_TICKS(2000)
+        osFlagsWaitAll | osFlagsNoClear,
+        2000
     );
 
     // ③ 进入 STOP
@@ -647,7 +646,7 @@ static void enter_stop_mode(void)
     xTaskResumeAll();
 
     // ④ 广播唤醒
-    xEventGroupSetBits(g_eg_sleep, EVT_WAKEUP);
+    osEventFlagsSet(g_ef_sleep, EVT_WAKEUP);
 
     // ⑤ 恢复外设
     HAL_SPI_Init(&hspi1);
@@ -687,11 +686,11 @@ Phase 0: main() — 硬件初始化 (Core/Src/main.c, 跑在特权模式)
 Phase 1: freertos.c — 内核 + IPC 创建
   ├── osKernelInitialize()
   ├── 创建 IPC 对象:
-  │     ├── g_q_ble_msg         = xQueueCreate(4, sizeof(ble_msg_t))
-  │     ├── g_q_save_req        = xQueueCreate(4, sizeof(save_req_t))
-  │     ├── g_q_power_event     = xQueueCreate(4, sizeof(power_evt_t))
-  │     ├── g_eg_sleep          = xEventGroupCreate()
-  │     └── g_eg_sys_state      = xEventGroupCreate()
+  │     ├── g_q_ble_msg         = osMessageQueueNew(4, sizeof(ble_msg_t), NULL)
+  │     ├── g_q_save_req        = osMessageQueueNew(4, sizeof(save_req_t), NULL)
+  │     ├── g_q_power_event     = osMessageQueueNew(4, sizeof(power_evt_t), NULL)
+  │     ├── g_ef_sleep          = osEventFlagsNew(NULL)
+  │     └── g_ef_sys_state      = osEventFlagsNew(NULL)
   ├── 创建 6 任务 (全部挂起: osThreadNew 默认挂起或创建后 vTaskSuspend)
   │     ├── LvglTask      (文件: App/Framework/lvgl_task.c)
   │     ├── I2CSensTask   (文件: App/Framework/i2c_sens_task.c)
@@ -1094,7 +1093,7 @@ XiYang_Watch/
 ```c
 // 全局变量: g_ 前缀
 volatile shared_mem_t g_shm;
-QueueHandle_t         g_q_ble_msg;
+osMessageQueueId_t         g_q_ble_msg;
 
 // 静态变量: s_ 前缀
 static uint32_t s_last_tick;
@@ -1160,7 +1159,7 @@ void ExampleTask(void *pvParameters)
         heartbeat_tick(TASK_EXAMPLE);
         
         // 4e. 阻塞等待 (必须有这一步, 不能空转)
-        vTaskDelay(pdMS_TO_TICKS(5));
+        osDelay(5);
     }
 }
 ```
@@ -1188,7 +1187,7 @@ void cst816_read(void) {
 bt_send_message("hello");  // LvglTask 直接调 BtTask 的函数
 
 // ❌ 禁止 6: HAL_Delay 在 FreeRTOS 任务中 (阻塞调度器)
-HAL_Delay(100);  // 应该用 vTaskDelay(pdMS_TO_TICKS(100))
+HAL_Delay(100);  // 应该用 osDelay(100)
 
 // ❌ 禁止 7: 运行时 malloc/free
 uint8_t *buf = malloc(256);  // 碎片! 用栈变量或静态缓冲区
@@ -1240,11 +1239,14 @@ void DiagTask(void *pvParameters)
         
         log_printf("[DIAG] HeapFree:%u LvglStackHWM:%u\r\n",
                     xPortGetFreeHeapSize(),
-                    uxTaskGetStackHighWaterMark(NULL));
+                    osThreadGetStackSpace(lvglTaskHandle));
+        log_printf("[DIAG] HeapFree:%u PowerStackHWM:%u\r\n",
+                    xPortGetFreeHeapSize(),
+                    uxTaskGetStackHighWaterMark(g_power_task_handle));
         
         HAL_IWDG_Refresh(&s_hiwdg);
         heartbeat_tick(TASK_DIAG);
-        vTaskDelay(pdMS_TO_TICKS(1000));
+        osDelay(1000);
     }
 }
 ```
@@ -1266,7 +1268,7 @@ void PowerTask(void *pvParameters)
         // TODO: 休眠状态机 (当前只做 ACTIVE)
         
         heartbeat_tick(TASK_POWER);
-        vTaskDelay(pdMS_TO_TICKS(1000));
+        osDelay(1000);
     }
 }
 ```
@@ -1295,7 +1297,7 @@ void PowerTask(void *pvParameters)
 #include "heartbeat.h"         // App/Framework/ — heartbeat_register
 #include "log_port.h"          // App/Framework/ — log_printf
 
-extern TaskHandle_t g_lvgl_task_handle;  // 用于 TaskNotify
+extern osThreadId_t lvglTaskHandle;  // 用于 TaskNotify
 
 void I2CSensTask(void *pvParameters)
 {
@@ -1322,14 +1324,14 @@ void I2CSensTask(void *pvParameters)
             g_shm.touch.pressed = 0;
         }
         __DSB();
-        xTaskNotify(g_lvgl_task_handle, 0, eNoAction);  // 通知 LVGL
+        osThreadFlagsSet(lvglTaskHandle, 0x01);  // 通知 LVGL
         
         // ⑤ 其他传感器 (按频率分档, 后面补)
         
         // ⑥ 心跳 + 阻塞
         heartbeat_tick(TASK_I2CSENS);
         counter++;
-        vTaskDelay(pdMS_TO_TICKS(5));
+        osDelay(5);
     }
 }
 ```
@@ -1358,7 +1360,7 @@ static void touchpad_get_xy(int32_t *x, int32_t *y)
 // Core/Src/freertos.c
 #include "i2c_sens_task.h"    // App/Framework/
 
-TaskHandle_t g_lvgl_task_handle;  // 供 I2CSensTask 用 TaskNotify
+osThreadId_t lvglTaskHandle;  // 供 I2CSensTask 用 TaskNotify
 
 // 在 MX_FREERTOS_Init 中:
 i2cSensTaskHandle = osThreadNew(I2CSensTask, NULL, &i2cSensTask_attributes);
@@ -1568,7 +1570,7 @@ freertos.c 改为:
 // BSP 驱动只导出功能函数:
 // - 返回 HAL_StatusTypeDef 或 uint8_t (HAL_OK/HAL_ERROR)
 // - 不返回 FreeRTOS 类型 (TickType_t, BaseType_t 等)
-// - 参数不包含 g_shm 引用、QueueHandle_t 等
+// - 参数不包含 g_shm 引用、osMessageQueueId_t 等
 
 uint8_t ds3231_init(void);
 uint8_t ds3231_read_time(uint8_t *hour, uint8_t *min, uint8_t *sec,
@@ -1579,17 +1581,17 @@ void    ds3231_wakeup(void);
 // ============================================================
 // 反例 — BSP 文件绝对不能包含的内容:
 // ============================================================
+// ❌ #include "cmsis_os2.h"         ← BSP 不依赖 RTOS
 // ❌ #include "FreeRTOS.h"          ← BSP 不依赖 RTOS
-// ❌ #include "task.h"              ← BSP 不创建任务
 // ❌ #include "queue.h"             ← BSP 不使用队列
 // ❌ #include "shared_memory.h"     ← BSP 不知道 g_shm
 // ❌ #include "heartbeat.h"         ← BSP 不知道心跳
 // ❌ xTaskCreate(...)               ← BSP 没有任务函数
-// ❌ vTaskDelay(...)                ← BSP 不调用调度器 API
-// ❌ xQueueSend(...)                ← BSP 不发送消息
+// ❌ osDelay(...)                ← BSP 不调用调度器 API
+// ❌ osMessageQueuePut(...)                ← BSP 不发送消息
 // ❌ heartbeat_register(...)        ← 任务层才注册心跳
 // ❌ g_shm.xxx = ...                ← BSP 不写共享内存
-// ❌ xTaskNotify(...)               ← BSP 不通知任务
+// ❌ osThreadFlagsSet(...)               ← BSP 不通知任务
 
 #endif /* DS3231_H */
 ```

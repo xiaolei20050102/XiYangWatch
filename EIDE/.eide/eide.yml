@@ -51,6 +51,7 @@ virtualFolder:
             - path: ../App/Framework/diag_task.c
             - path: ../App/Framework/log_port.c
             - path: ../App/Framework/power_task.c
+            - path: ../App/Framework/i2c_sens_task.c
           folders: []
         - name: Images
           files: []

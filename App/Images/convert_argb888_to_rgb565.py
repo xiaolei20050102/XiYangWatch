@@ -1,9 +1,9 @@
-"""Convert LVGL ARGB8888 image .c files to RGB565, optionally baking in a recolor.
+"""Convert LVGL ARGB8888 image .c files to RGB565_SWAPPED, optionally baking in a recolor.
 
 Usage: python convert_argb888_to_rgb565.py <file.c>:<RRGGBB> ...
 
 ARGB8888 bytes are stored as B,G,R,A (little-endian uint32).
-Output RGB565 (2 bytes/pixel, big-endian uint16).
+Output RGB565_SWAPPED (2 bytes/pixel, big-endian uint16, high byte first).
 If recolor is provided, the original RGB is replaced by it before alpha blending.
 """
 
@@ -22,7 +22,7 @@ def parse_c_file(path):
     return name, map_name, w, h, hex_data
 
 def convert(data, w, h, recolor=None):
-    """BGRA little-endian -> RGB565 big-endian, optionally with recolor."""
+    """BGRA little-endian -> RGB565_SWAPPED (big-endian), optionally with recolor."""
     out = bytearray()
     if recolor:
         rr, rg, rb = recolor
@@ -34,8 +34,8 @@ def convert(data, w, h, recolor=None):
         g2 = (g * a) // 255
         b2 = (b * a) // 255
         rgb565 = ((r2 >> 3) << 11) | ((g2 >> 2) << 5) | (b2 >> 3)
-        out.append(rgb565 & 0xFF)
-        out.append((rgb565 >> 8) & 0xFF)
+        out.append((rgb565 >> 8) & 0xFF)  # high byte first (big-endian)
+        out.append(rgb565 & 0xFF)         # low byte second
     return bytes(out)
 
 def write_rgb565_c(path, name, map_name, w, h, data):
@@ -79,7 +79,7 @@ def write_rgb565_c(path, name, map_name, w, h, data):
         '};',
         '',
         f'const lv_image_dsc_t {name_new} = {{',
-        f'  .header.cf = LV_COLOR_FORMAT_RGB565,',
+        f'  .header.cf = LV_COLOR_FORMAT_RGB565_SWAPPED,',
         f'  .header.magic = LV_IMAGE_HEADER_MAGIC,',
         f'  .header.w = {w},',
         f'  .header.h = {h},',

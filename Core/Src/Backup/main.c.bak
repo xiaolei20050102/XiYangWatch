@@ -19,6 +19,7 @@
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
 #include "cmsis_os.h"
+#include "dma.h"
 #include "i2c.h"
 #include "spi.h"
 #include "tim.h"
@@ -29,6 +30,7 @@
 /* USER CODE BEGIN Includes */
 #include "string.h"
 #include "lcd_st7789.h"
+#include "lvgl.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -93,6 +95,7 @@ int main(void)
 
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
+  MX_DMA_Init();
   MX_I2C1_Init();
   MX_I2C2_Init();
   MX_SPI1_Init();
@@ -104,23 +107,10 @@ int main(void)
 	uint8_t ch[] = "XiYangWatch\r\n";
 	HAL_UART_Transmit(&huart2,ch,strlen((char *)ch),1000);
 
-	
-	HAL_TIM_PWM_Start(&htim2, TIM_CHANNEL_2);
-	__HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_2, 80);  // 80% 亮度，先拉满
+	ST7789_SetBacklight(80);
 
-
-HAL_GPIO_WritePin(LED_GPIO_Port, LED_Pin, GPIO_PIN_RESET);  // LED 亮
-HAL_Delay(200);
-HAL_GPIO_WritePin(LED_GPIO_Port, LED_Pin, GPIO_PIN_SET);    // LED 灭
-
-  ST7789_Init();
-  HAL_TIM_PWM_Start(&htim2, TIM_CHANNEL_2);
-  __HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_2, 50);
-HAL_UART_Transmit(&huart2, (uint8_t*)"Fill Start\r\n", 12, 100);
-ST7789_Fill(0x001F);
-HAL_UART_Transmit(&huart2, (uint8_t*)"Fill End\r\n", 10, 100);
-
-
+	ST7789_Init();
+	ST7789_Fill(COLOR_BLACK);
 
   /* USER CODE END 2 */
 
@@ -211,7 +201,7 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
     HAL_IncTick();
   }
   /* USER CODE BEGIN Callback 1 */
-
+    lv_tick_inc(1);
   /* USER CODE END Callback 1 */
 }
 

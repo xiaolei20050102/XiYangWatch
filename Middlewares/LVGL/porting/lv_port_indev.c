@@ -10,8 +10,7 @@
  *      INCLUDES
  *********************/
 #include "lv_port_indev.h"
-#include "touch_cst816s.h"
-
+#include "shared_memory.h"     /* g_shm.touch */
 /**********************
  *  STATIC PROTOTYPES
  **********************/
@@ -45,7 +44,7 @@ void lv_port_indev_init(void)
 
 static void touchpad_init(void)
 {
-    CST816_Init();
+    /* CST816 初始化已由 I2CSensTask 接管 (App/Framework/i2c_sens_task.c) */
 }
 
 static void touchpad_read(lv_indev_t * indev_drv, lv_indev_data_t * data)
@@ -66,16 +65,13 @@ static void touchpad_read(lv_indev_t * indev_drv, lv_indev_data_t * data)
 
 static bool touchpad_is_pressed(void)
 {
-    uint8_t finger = CST816_GetFingerNum();
-    return (finger != 0x00 && finger != 0xFF);
+    return g_shm.touch.pressed;
 }
 
 static void touchpad_get_xy(int32_t * x, int32_t * y)
 {
-    Touch_Info_t info;
-    CST816_GetTouch(&info);
-    *x = (int32_t)info.X_Pos;
-    *y = (int32_t)info.Y_Pos;
+    *x = g_shm.touch.x;
+    *y = g_shm.touch.y;
 }
 
 #else

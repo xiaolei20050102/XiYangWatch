@@ -32,8 +32,8 @@
 #include "Framework/gesture.h"
 #include "diag_task.h"
 #include "power_task.h"
-/* 前向声明：避开 touch_cst816s.h 与 gesture.h 的枚举名冲突 */
-extern uint8_t CST816_GetGesture(void);
+#include "i2c_sens_task.h"
+#include "shared_memory.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -86,6 +86,15 @@ const osThreadAttr_t powerTask_attributes = {
   .stack_size = 128 * 4,
   .priority = (osPriority_t) osPriorityLow,
 };
+
+/* Definitions for I2CsensTask */
+osThreadId_t I2CsensTaskHandle;
+const osThreadAttr_t I2CsensTask_attributes = {
+  .name = "I2CsensTask",
+  .stack_size = 128 * 4,
+  .priority = (osPriority_t) osPriorityLow,
+};
+
 /* Private function prototypes -----------------------------------------------*/
 /* USER CODE BEGIN FunctionPrototypes */
 
@@ -131,6 +140,7 @@ void MX_FREERTOS_Init(void) {
   lvglTaskHandle = osThreadNew(StartLvglTask, NULL, &lvglTask_attributes);
   diagTaskHandle = osThreadNew(DiagTask, NULL, &diagTask_attributes);
   powerTaskHandle = osThreadNew(PowerTask, NULL, &powerTask_attributes);
+  I2CsensTaskHandle = osThreadNew(I2CSensTask, NULL, &I2CsensTask_attributes);
   /* USER CODE END RTOS_THREADS */
 
   /* USER CODE BEGIN RTOS_EVENTS */
@@ -167,8 +177,9 @@ void StartLvglTask(void *argument)
 
   for(;;)
   {
-    /* 触摸手势 → 页面导航（必须在 lv_timer_handler 之前，否则 LVGL click 事件会先于手势触发） */
-    uint8_t raw = CST816_GetGesture();
+    /* 触摸手势 → 页面导航（必须在 lv_timer_handler 之前，否则 LVGL click 事件会先于手势触发）
+       手势已由 I2CSensTask 读取并写入 g_shm.touch.gesture */
+    uint8_t raw = g_shm.touch.gesture;
     gesture_t g = GESTURE_NONE;
     switch (raw) {
         case 0x01: g = GESTURE_DOWN;  break;
@@ -183,7 +194,8 @@ void StartLvglTask(void *argument)
     lv_timer_handler();
     app_loop();
 
-    vTaskDelay(pdMS_TO_TICKS(5));
+    /* 等 I2CSensTask 通知: bit0=1→新数据, 灯亮立刻醒; 超时5ms也醒 */
+    osThreadFlagsWait(0x01, osFlagsWaitAny, 5);
   }
 }
 

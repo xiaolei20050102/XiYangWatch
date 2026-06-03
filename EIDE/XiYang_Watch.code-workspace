@@ -9,6 +9,9 @@
         {
             "name": "LVGL 仿真器",
             "path": "../../XiYang_LVGL_Simulator"
+        },
+        {
+            "path": "../../OV_Watch"
         }
     ],
     "settings": {
