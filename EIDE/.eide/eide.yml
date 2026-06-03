@@ -50,6 +50,7 @@ virtualFolder:
             - path: ../App/Framework/heartbeat.c
             - path: ../App/Framework/diag_task.c
             - path: ../App/Framework/log_port.c
+            - path: ../App/Framework/power_task.c
           folders: []
         - name: Images
           files: []

@@ -31,6 +31,7 @@
 #include "app.h"
 #include "Framework/gesture.h"
 #include "diag_task.h"
+#include "power_task.h"
 /* 前向声明：避开 touch_cst816s.h 与 gesture.h 的枚举名冲突 */
 extern uint8_t CST816_GetGesture(void);
 /* USER CODE END Includes */
@@ -78,6 +79,13 @@ const osThreadAttr_t diagTask_attributes = {
   .priority = (osPriority_t) osPriorityLow,
 };
 
+/* Definitions for PowerTask */
+osThreadId_t powerTaskHandle;
+const osThreadAttr_t powerTask_attributes = {
+  .name = "powerTask",
+  .stack_size = 128 * 4,
+  .priority = (osPriority_t) osPriorityLow,
+};
 /* Private function prototypes -----------------------------------------------*/
 /* USER CODE BEGIN FunctionPrototypes */
 
@@ -122,7 +130,7 @@ void MX_FREERTOS_Init(void) {
   /* add threads, ... */
   lvglTaskHandle = osThreadNew(StartLvglTask, NULL, &lvglTask_attributes);
   diagTaskHandle = osThreadNew(DiagTask, NULL, &diagTask_attributes);
-
+  powerTaskHandle = osThreadNew(PowerTask, NULL, &powerTask_attributes);
   /* USER CODE END RTOS_THREADS */
 
   /* USER CODE BEGIN RTOS_EVENTS */

@@ -14,8 +14,8 @@
  * - 2026-05-21  v1.0  创建文件，实现基本读写、坐标读取、手势识别
  */
 
-#ifndef __TOUCH_CST816S_H__
-#define __TOUCH_CST816S_H__
+#ifndef TOUCH_CST816S_H
+#define TOUCH_CST816S_H
 
 /* ========================== 头文件包含 ========================== */
 
@@ -60,7 +60,8 @@
 
 /* ========================== 面板偏移 ========================== */
 
-#define TOUCH_OFFSET_Y  15
+#define TOUCH_OFFSET_X  0
+#define TOUCH_OFFSET_Y  0
 
 /* ========================== 硬件抽象宏（移植时只改这里） ========================== */
 
@@ -100,9 +101,11 @@ void CST816_Init(void);
 uint8_t CST816_GetChipID(void);
 uint8_t CST816_GetFingerNum(void);
 void CST816_GetTouch(Touch_Info_t* info);
+void CST816_GetTouchRaw(Touch_Info_t* info);
 Touch_Gesture_t CST816_GetGesture(void);
 void CST816_Sleep(void);
 void CST816_Wakeup(void);
 void CST816_Test(void);
+void CST816_Calibrate(void);
 
 #endif

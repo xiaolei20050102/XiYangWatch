@@ -14,8 +14,8 @@
  * - 2026-05-21  修复 SPI 引脚、RST 引脚、OFFSET_Y，抽象 HAL 调用
  */
 
-#ifndef __LEC_ST7789_H__
-#define __LEC_ST7789_H__
+#ifndef LCD_ST7789_H
+#define LCD_ST7789_H
 
 /* ========================== 头文件包含 ========================== */
 #include "spi.h"

@@ -1,28 +1,33 @@
 # XiYangWatch 系统架构设计书
 
-> 版本: v4.0  
-> 日期: 2026-06-02  
+> 版本: v4.1  
+> 日期: 2026-06-03  
 > MCU: STM32F411CE (Cortex-M4F, 96MHz, 512KB Flash, 128KB RAM)  
 > GUI: LVGL 9.5 (240×280, RGB565)  
 > RTOS: FreeRTOS V10.3.1 (CMSIS-RTOS v2 API)
+
+**v4.1 修订说明:** 修正 v4.0 中任务文件放置于 BSP 目录下的架构偏差。FreeRTOS 任务归属于 Application 层，BSP 为纯硬件驱动函数库。此分层遵循 Zephyr、STM32Cube、NXP MCUXpresso、Nordic nRF5、ARM IoT Reference 等行业标准项目的一致做法。
 
 ---
 
 ## 目录
 
 1. [设计哲学](#一设计哲学)
-2. [总线与硬件分配](#二总线与硬件分配)
-3. [任务全景](#三任务全景)
-4. [IPC 通信矩阵](#四ipc-通信矩阵)
-5. [共享内存设计](#五共享内存设计)
-6. [消息队列设计](#六消息队列设计)
-7. [低功耗状态机](#七低功耗状态机)
-8. [启动序列](#八启动序列)
-9. [故障恢复策略](#九故障恢复策略)
-10. [看门狗与心跳监控](#十看门狗与心跳监控)
-11. [文件目录结构](#十一文件目录结构)
-12. [编码规范](#十二编码规范)
-13. [Phase 2 实施路线图](#十三phase-2-实施路线图)
+2. [分层架构](#二分层架构)
+3. [总线与硬件分配](#三总线与硬件分配)
+4. [任务全景](#四任务全景)
+5. [IPC 通信矩阵](#五ipc-通信矩阵)
+6. [共享内存设计](#六共享内存设计)
+7. [消息队列设计](#七消息队列设计)
+8. [低功耗状态机](#八低功耗状态机)
+9. [启动序列](#九启动序列)
+10. [故障恢复策略](#十故障恢复策略)
+11. [看门狗与心跳监控](#十一看门狗与心跳监控)
+12. [文件目录结构](#十二文件目录结构)
+13. [编码规范](#十三编码规范)
+14. [Phase 2 实施路线图](#十四phase-2-实施路线图)
+15. [文件清册](#十五文件清册)
+16. [BSP 驱动 API 模板](#十六bsp-驱动-api-模板)
 
 ---
 
@@ -32,17 +37,20 @@
 
 | 原则 | 含义 | 落地方式 |
 |------|------|---------|
-| **物理隔离** | 每个任务独占一条物理总线 | SPI1→LvglTask, I2C1→I2CSensTask, USART1→BtTask, SPI2→SaveTask |
+| **单向依赖** | 上层调下层，禁止反向 | App → BSP → HAL。BSP 绝不 include FreeRTOS.h |
+| **任务与驱动分离** | 任务决定"何时做"，驱动提供"能做什么" | 所有 FreeRTOS 任务在 App 层，BSP 只导出函数 |
 | **零拷贝高频** | 高频数据不经过队列，走共享内存 | g_touch / g_sensor 直接读写，TaskNotify 通知 |
 | **不可丢失低频** | 低频事件走消息队列，保证送达 | BLE 消息 / 存储请求 / 电源事件 走 Queue |
 | **故障隔离** | 一个模块挂不影响系统运行 | 传感器降级、任务心跳超限软复位 |
-| **可观测性** | 运行时状态透明，故障可追溯 | DiagTask 心跳监控 + UART2 日志输出 |
+| **可观测性** | 运行时状态透明，故障可追溯 | DiagTask 心跳监控 + SEGGER_RTT 日志输出 |
 | **确定性** | 所有任务周期和优先级预先设计，不靠"运气"调度 | 高优先级抢占，低优先级填空 |
 
 ### 1.2 禁止事项
 
 | 禁止 | 原因 |
 |------|------|
+| ❌ 任务文件放在 BSP 目录下 | BSP 是纯驱动层，不含 FreeRTOS 概念 |
+| ❌ BSP 文件 include FreeRTOS.h | 驱动不依赖操作系统，可脱离 RTOS 独立测试 |
 | ❌ HAL 调用不检查返回值 | 静默失败是最难排查的 bug |
 | ❌ 任务内 `while(1)` 无阻塞点 | CPU 100% 白转，功耗爆炸 |
 | ❌ 跨任务直接调用函数 | 破坏解耦，不知道谁依赖谁 |
@@ -62,7 +70,89 @@
 
 ---
 
-## 二、总线与硬件分配
+## 二、分层架构
+
+### 2.1 五层模型
+
+本项目遵循嵌入式行业标准的 5 层单向依赖模型。此模型被 Zephyr RTOS (Linux 基金会)、STM32Cube 社区、NXP MCUXpresso SDK、Nordic nRF Connect SDK 及 ARM IoT 参考集成所采用。
+
+```
+┌──────────────────────────────────────────────────────────────┐
+│  Layer 5: Application (App/)                                  │
+│  FreeRTOS 任务、业务逻辑、状态机、页面 UI                       │
+│  ┌──────────────────────────────────────────────────────────┐│
+│  │ 仅调用 BSP 层函数。绝不直接触摸 HAL 寄存器。               ││
+│  │ 任务文件: diag_task, power_task, i2c_sens_task,           ││
+│  │           bt_task, save_task, lvgl_task                   ││
+│  │ 基础设施: shared_memory, ipc_defs, heartbeat, log_port    ││
+│  │ 页面管理: page_manager, gesture                           ││
+│  │ 数据适配: data_provider                                   ││
+│  │ 页面: page_watchface, page_heartrate, ...                 ││
+│  └──────────────────────────────────────────────────────────┘│
+│                          ↓ 调用                                │
+├──────────────────────────────────────────────────────────────┤
+│  Layer 4: BSP — Board Support Package (BSP/)                  │
+│  纯硬件驱动函数。ZERO FreeRTOS 依赖。ZERO 任务文件。           │
+│  ┌──────────────────────────────────────────────────────────┐│
+│  │ 每个外设导出: init / read / sleep / wake                  ││
+│  │ 不含 FreeRTOS.h。不含 xTaskCreate。不含任务循环。         ││
+│  │ 不含 IPC 对象 (队列、信号量、g_shm 引用)。                 ││
+│  │ LCD: lcd_st7789    Touch: touch_cst816s                   ││
+│  │ RTC: ds3231        ENV: bme280                            ││
+│  │ IMU: qmi8658       HR: max30102                           ││
+│  │ Flash: w25q64      BLE: esp32_at_hal                      ││
+│  └──────────────────────────────────────────────────────────┘│
+│                          ↓ 调用                                │
+├──────────────────────────────────────────────────────────────┤
+│  Layer 3: Drivers (Drivers/)                                   │
+│  STM32 HAL + CMSIS。芯片厂商提供，只读。                       │
+├──────────────────────────────────────────────────────────────┤
+│  Layer 2: Middleware (Middlewares/)                             │
+│  第三方库: FreeRTOS V10.3.1, LVGL 9.5, SEGGER_RTT             │
+├──────────────────────────────────────────────────────────────┤
+│  Layer 1: Hardware (STM32F411CE)                               │
+│  Cortex-M4F, 96MHz, 512KB Flash, 128KB SRAM                   │
+└──────────────────────────────────────────────────────────────┘
+```
+
+### 2.2 黄金法则
+
+```
+┌───────────────────────────────────────────────────────────────┐
+│ ① 任务文件绝不出现在 BSP 目录下。                              │
+│ ② BSP 文件绝不 #include FreeRTOS.h 或其他 RTOS 头文件。        │
+│ ③ BSP 输出函数，App 调用它们。依赖方向: App → BSP → HAL。     │
+│ ④ 永不反向: BSP 不能调 App 层函数，不能读写 g_shm。           │
+│ ⑤ 换 MCU 只需重写 BSP + Drivers，App 层代码不动。             │
+└───────────────────────────────────────────────────────────────┘
+```
+
+### 2.3 本项目的实际分层
+
+| 目录 | 层 | 内容 | RTOS 依赖 |
+|------|:--:|------|:--:|
+| `App/Framework/` | App | 所有 FreeRTOS 任务 + IPC 基础设施 | ✅ |
+| `App/Pages/` | App | UI 页面 (调 LVGL + data_provider) | ❌ |
+| `App/Data/` | App | 数据适配 (读 g_shm) | ❌ |
+| `BSP/` | BSP | 纯外设驱动函数库 | ❌ |
+| `Drivers/` | HAL | STM32F4 HAL 库 (只读) | ❌ |
+| `Middlewares/` | Middleware | FreeRTOS, LVGL, SEGGER_RTT | ✅ |
+| `Core/` | 初始化 | CubeMX 生成, main.c, freertos.c | ✅ |
+
+### 2.4 行业参考
+
+| 项目 | App 层 (任务所在) | BSP 层 (纯驱动) |
+|------|-------------------|-----------------|
+| **Zephyr RTOS** | `src/` (app threads) | `drivers/` (sensor drivers) |
+| **STM32Cube 社区** | `App/Tasks/` | `Drivers/BSP/` |
+| **NXP MCUXpresso** | `source/` (main + tasks) | `board/` (board init) |
+| **Nordic nRF5 SDK** | `examples/` (user main) | `modules/` (nrfx drivers) |
+| **ARM IoT Reference** | `applications/` (task files) | `bsp/` (board abstraction) |
+| **OV_Watch (参考)** | `User/Tasks/` (13 任务) | `BSP/` (芯片名/ 纯驱动) |
+
+---
+
+## 三、总线与硬件分配
 
 ```
                     STM32F411CE
@@ -73,10 +163,10 @@
   PA5/PA6/PA7         PB6(SCL)/PB7(SDA)        PA9(TX)/PA10(RX)
     │                    │                        │
     ├─ ST7789 LCD        ├─ CST816S  0x15 (触摸)   └─ ESP32-C3 (BLE)
-    │  CS=PB1            ├─ DS3231   0x68 (时钟)      
-    │  DC=PB0            ├─ BME280   0x76 (环境)      
-    │  RST=PB12          ├─ QMI8658  0x6B (IMU)       
-    │  BL=PWM TIM2_CH2   └─ MAX30102 0x57 (心率)      
+    │  CS=PB1            ├─ DS3231   0x68 (时钟)
+    │  DC=PB0            ├─ BME280   0x76 (环境)
+    │  RST=PB12          ├─ QMI8658  0x6B (IMU)
+    │  BL=PWM TIM2_CH2   └─ MAX30102 0x57 (心率)
     │
   SPI2                     ADC                     GPIO
   PB13/PB14/PB15           PA0                     PB2=CST816 INT
@@ -99,7 +189,7 @@
 
 ---
 
-## 三、任务全景
+## 四、任务全景
 
 ```
 ┌──────────────────────────────────────────────────────────────────┐
@@ -112,21 +202,23 @@
 │  │ prio:12  │ │ prio:12  │ │ prio:10  │ │ prio:6               │ │
 │  │ 8KB      │ │ 2KB      │ │ 4KB      │ │ 2KB                  │ │
 │  │ 5ms      │ │ 5ms      │ │事件驱动   │ │ 队列驱动              │ │
+│  │ 文件:    │ │ 文件:    │ │ 文件:    │ │ 文件:                │ │
+│  │ Framework│ │ Framework│ │ Framework│ │ Framework             │ │
 │  └────┬─────┘ └────┬─────┘ └────┬─────┘ └──────┬───────────────┘ │
 │       │            │            │              │                  │
 │  ┌────┴────────────┴────────────┴──────────────┴───────────────┐ │
-│  │  PowerTask (prio:10, 1KB, 1s)                                 │ │
+│  │  PowerTask (prio:10, 1KB, 1s)    文件: App/Framework/         │ │
 │  │  电池/充电/亮暗屏/休眠仲裁                                     │ │
 │  └──────────────────────────────────────────────────────────────┘ │
 │                                                                    │
 │  ┌──────────────────────────────────────────────────────────────┐ │
-│  │  DiagTask (prio:2, 1KB, 1s)                                   │ │
-│  │  看门狗/心跳监控/异常复位/内存统计/UART2 日志                   │ │
+│  │  DiagTask (prio:2, 1KB, 1s)       文件: App/Framework/        │ │
+│  │  看门狗/心跳监控/异常复位/内存统计/RTT 日志                     │ │
 │  └──────────────────────────────────────────────────────────────┘ │
 │                                                                    │
-│  ┌──────────────────────────────────────────────────────────────┐ │
-│  │  Tmr SvcTask (FreeRTOS 内建, 系统优先级)                       │ │
-│  │  软件定时器回调执行                                             │ │
+│  ┌──────────────────────────────────────────────────────────────┘ │
+│  │  Tmr SvcTask (FreeRTOS 内建, 系统优先级)                        │
+│  │  软件定时器回调执行                                              │
 │  └──────────────────────────────────────────────────────────────┘ │
 └──────────────────────────────────────────────────────────────────┘
 ```
@@ -135,12 +227,12 @@
 
 | 属性 | LvglTask | I2CSensTask | BtTask | SaveTask | PowerTask | DiagTask |
 |------|----------|-------------|--------|----------|-----------|----------|
+| **文件位置** | `App/Framework/lvgl_task.c` | `App/Framework/i2c_sens_task.c` | `App/Framework/bt_task.c` | `App/Framework/save_task.c` | `App/Framework/power_task.c` | `App/Framework/diag_task.c` |
 | **优先级** | osPriorityHigh (12) | osPriorityHigh (12) | osPriorityNormal (10) | osPriorityLow (6) | osPriorityNormal (10) | osPriorityLow (2) |
 | **栈大小** | 8KB (512×16) | 2KB (128×16) | 4KB (256×16) | 2KB (128×16) | 1KB (64×16) | 1KB (64×16) |
 | **周期** | 5ms | 5ms | 事件驱动 | 队列驱动 | 1s | 1s |
-| **独占硬件** | SPI1 | I2C1 | USART1 | SPI2 | ADC+GPIO | UART2 |
-| **核心职责** | LVGL渲染+PageMgr | 5传感器采集 | BLE协议栈 | Flash持久化 | 电源管理 | 系统监控 |
-| **心跳超时** | 1s | 200ms | 5s | 30s | 3s | — |
+| **控制硬件** | 通过 BSP 调 SPI1 | 通过 BSP 调 I2C1 | 通过 BSP 调 USART1 | 通过 BSP 调 SPI2 | ADC+GPIO | UART2+IWDG |
+| **核心职责** | LVGL 渲染+PageMgr | 5 传感器采集 | BLE 协议栈 | Flash 持久化 | 电源管理 | 系统监控 |
 
 ### 为什么 LvglTask 和 I2CSensTask 同优先级
 
@@ -151,9 +243,9 @@
 
 ---
 
-## 四、IPC 通信矩阵
+## 五、IPC 通信矩阵
 
-### 4.1 完整通信图
+### 5.1 完整通信图
 
 ```
 发送→接收    LvglTask       I2CSensTask    BtTask         PowerTask      SaveTask
@@ -175,24 +267,23 @@ SaveTask     ▌Notify        ▌—           ▌—            ▌—         
              ▌(存储完成)    ▌            ▌             ▌              ▌
 ```
 
-### 4.2 每条通道的代码定义
+### 5.2 每条通道的代码定义
 
 ```c
 // ============================================================
-// ipc_defs.h — 所有 IPC 对象统一定义于此
+// ipc_defs.h — 所有 IPC 对象统一定义于此 (App/Framework/)
 // ============================================================
 
 // ——— Task Notifications (高频, 零拷贝) ———
 // 只用作二进制通知(无值传递), 值走共享内存
 
 // ——— Message Queues (低频, 不可丢失) ———
-extern QueueHandle_t q_ble_msg;        // BtTask → LvglTask, BLE消息
-extern QueueHandle_t q_save_req;       // I2CSensTask/BtTask → SaveTask, 存储请求
-extern QueueHandle_t q_power_event;    // PowerTask → LvglTask, 电源事件
-extern QueueHandle_t q_diag_log;       // 任意任务 → DiagTask, 诊断日志
+extern QueueHandle_t g_q_ble_msg;        // BtTask → LvglTask, BLE消息
+extern QueueHandle_t g_q_save_req;       // I2CSensTask/BtTask → SaveTask, 存储请求
+extern QueueHandle_t g_q_power_event;    // PowerTask → LvglTask, 电源事件
 
 // ——— Event Groups (多任务同步) ———
-extern EventGroupHandle_t eg_sleep;    // PowerTask → 全员, 休眠协调
+extern EventGroupHandle_t g_eg_sleep;    // PowerTask → 全员, 休眠协调
 //   bit0: EVT_PREPARE_SLEEP   休眠准备
 //   bit1: ACK_LVGL_READY      LvglTask 就绪
 //   bit2: ACK_I2C_READY       I2CSensTask 就绪
@@ -201,13 +292,13 @@ extern EventGroupHandle_t eg_sleep;    // PowerTask → 全员, 休眠协调
 //   bit5: ACK_DIAG_READY      DiagTask 就绪
 //   bit6: EVT_WAKEUP          系统唤醒
 
-extern EventGroupHandle_t eg_sys_state; // 系统状态标志
+extern EventGroupHandle_t g_eg_sys_state; // 系统状态标志
 //   bit0: SYS_READY           所有任务就绪
 //   bit1: SYS_OTA_MODE        OTA 模式
 //   bit2: SYS_SAFE_MODE       安全模式
 ```
 
-### 4.3 为什么高频不走队列
+### 5.3 为什么高频不走队列
 
 ```
 触摸坐标: 每 5ms 一个 (200Hz)
@@ -224,13 +315,13 @@ extern EventGroupHandle_t eg_sys_state; // 系统状态标志
 
 ---
 
-## 五、共享内存设计
+## 六、共享内存设计
 
-### 5.1 数据结构
+### 6.1 数据结构
 
 ```c
 // ============================================================
-// shared_memory.h — 所有全局共享数据统一定义于此
+// shared_memory.h — 所有全局共享数据统一定义于此 (App/Framework/)
 // ============================================================
 
 #include <stdint.h>
@@ -251,7 +342,7 @@ typedef struct {
     uint8_t  day;
     uint8_t  month;
     uint16_t year;
-    uint32_t last_update_tick;  // 上次从 DS3231 读取的时间戳
+    uint32_t last_update_tick;
 } time_data_t;
 
 /* ——— 环境数据 (I2CSensTask→写, LvglTask→读) ——— */
@@ -322,7 +413,7 @@ typedef struct {
 extern volatile shared_mem_t g_shm;
 ```
 
-### 5.2 访问规则
+### 6.2 访问规则
 
 ```
 规则 1: 每个字段只有一个写入者 (Single Writer)
@@ -346,13 +437,13 @@ extern volatile shared_mem_t g_shm;
 
 ---
 
-## 六、消息队列设计
+## 七、消息队列设计
 
-### 6.1 队列定义
+### 7.1 队列定义
 
 ```c
 // ============================================================
-// 消息类型枚举
+// ipc_defs.h — 消息类型枚举 (App/Framework/)
 // ============================================================
 
 /* ——— BLE 消息 (BtTask → LvglTask) ——— */
@@ -372,7 +463,7 @@ typedef struct {
     uint16_t payload_len;
 } ble_msg_t;
 
-// 队列: q_ble_msg, 深度 4, 元素大小 = sizeof(ble_msg_t)
+// 队列: g_q_ble_msg, 深度 4, 元素大小 = sizeof(ble_msg_t)
 
 /* ——— 存储请求 (I2CSensTask/BtTask → SaveTask) ——— */
 typedef enum {
@@ -389,7 +480,7 @@ typedef struct {
     uint8_t  callback_needed;  // 写完后是否需要通知
 } save_req_t;
 
-// 队列: q_save_req, 深度 4, 元素大小 = sizeof(save_req_t)
+// 队列: g_q_save_req, 深度 4, 元素大小 = sizeof(save_req_t)
 
 /* ——— 电源事件 (PowerTask → LvglTask) ——— */
 typedef enum {
@@ -404,10 +495,10 @@ typedef struct {
     uint8_t value;             // 亮度值/电量值
 } power_evt_t;
 
-// 队列: q_power_event, 深度 4, 元素大小 = sizeof(power_evt_t)
+// 队列: g_q_power_event, 深度 4, 元素大小 = sizeof(power_evt_t)
 ```
 
-### 6.2 队列使用模式
+### 7.2 队列使用模式
 
 ```c
 // 生产者 (例如 BtTask 发 BLE 通知消息)
@@ -416,17 +507,17 @@ msg.type = BLE_MSG_NOTIFICATION;
 msg.payload_len = len;
 memcpy(msg.payload, data, len);
 
-BaseType_t rc = xQueueSend(q_ble_msg, &msg, pdMS_TO_TICKS(100));
+BaseType_t rc = xQueueSend(g_q_ble_msg, &msg, pdMS_TO_TICKS(100));
 if (rc != pdPASS) {
     // 队列满 → 丢弃最老的消息, 插入新的
     ble_msg_t old;
-    xQueueReceive(q_ble_msg, &old, 0);  // 非阻塞弹出旧消息
-    xQueueSend(q_ble_msg, &msg, 0);     // 插入新消息
+    xQueueReceive(g_q_ble_msg, &old, 0);  // 非阻塞弹出旧消息
+    xQueueSend(g_q_ble_msg, &msg, 0);     // 插入新消息
 }
 
 // 消费者 (LvglTask 收 BLE 消息)
 ble_msg_t msg;
-while (xQueueReceive(q_ble_msg, &msg, 0) == pdPASS) {
+while (xQueueReceive(g_q_ble_msg, &msg, 0) == pdPASS) {
     // 一次处理完队列中所有消息, 避免积压
     lvgl_handle_ble_msg(&msg);
 }
@@ -434,9 +525,9 @@ while (xQueueReceive(q_ble_msg, &msg, 0) == pdPASS) {
 
 ---
 
-## 七、低功耗状态机
+## 八、低功耗状态机
 
-### 7.1 状态定义
+### 8.1 状态定义
 
 ```c
 typedef enum {
@@ -447,7 +538,7 @@ typedef enum {
 } power_state_t;
 ```
 
-### 7.2 状态转换
+### 8.2 状态转换
 
 ```
             触摸/按键/BLE/充电
@@ -464,9 +555,10 @@ typedef enum {
                                    (喂狗+检查触摸/充电)
 ```
 
-### 7.3 PowerTask 核心逻辑
+### 8.3 PowerTask 核心逻辑
 
 ```c
+// App/Framework/power_task.c
 void PowerTask(void *pvParameters)
 {
     power_state_t state = PWR_STATE_ACTIVE;
@@ -474,7 +566,7 @@ void PowerTask(void *pvParameters)
 
     while (1)
     {
-        // ① 读电池
+        // ① 读电池 (通过调用 BSP/ 中的 ADC 封装函数)
         g_shm.power.battery_pct = adc_to_pct(read_battery_adc());
         g_shm.power.charging = charge_detect();
 
@@ -502,8 +594,8 @@ void PowerTask(void *pvParameters)
             break;
 
         case PWR_STATE_STOP:
-            enter_stop_mode();  // 见 7.4
-            last_user_event = HAL_GetTick();  // 醒来后重置计时
+            enter_stop_mode();  // 见 8.4
+            last_user_event = HAL_GetTick();
             state = PWR_STATE_ACTIVE;
             break;
         }
@@ -513,17 +605,17 @@ void PowerTask(void *pvParameters)
 }
 ```
 
-### 7.4 STOP 模式进入/退出
+### 8.4 STOP 模式进入/退出
 
 ```c
 static void enter_stop_mode(void)
 {
     // ① 广播休眠准备
-    xEventGroupSetBits(eg_sleep, EVT_PREPARE_SLEEP);
+    xEventGroupSetBits(g_eg_sleep, EVT_PREPARE_SLEEP);
 
     // ② 等待所有任务就绪 (超时 2s, 强制继续)
     EventBits_t ack = xEventGroupWaitBits(
-        eg_sleep,
+        g_eg_sleep,
         ACK_LVGL_READY | ACK_I2C_READY | ACK_BT_READY |
         ACK_SAVE_READY | ACK_DIAG_READY,
         pdTRUE,   // 读后清零
@@ -555,16 +647,16 @@ static void enter_stop_mode(void)
     xTaskResumeAll();
 
     // ④ 广播唤醒
-    xEventGroupSetBits(eg_sleep, EVT_WAKEUP);
+    xEventGroupSetBits(g_eg_sleep, EVT_WAKEUP);
 
     // ⑤ 恢复外设
     HAL_SPI_Init(&hspi1);
     lcd_init_light();
-    cst816_wakeup();
+    cst816_wakeup();   // 调用 BSP/Touch/touch_cst816s.c 中的函数
 }
 ```
 
-### 7.5 传感器降频表
+### 8.5 传感器降频表
 
 | 传感器 | ACTIVE | IDLE | STOP |
 |--------|:------:|:----:|:----:|
@@ -576,13 +668,13 @@ static void enter_stop_mode(void)
 
 ---
 
-## 八、启动序列
+## 九、启动序列
 
 ```
 上电复位
   │
   ▼
-Phase 0: main() — 硬件初始化 (main.c, 跑在特权模式)
+Phase 0: main() — 硬件初始化 (Core/Src/main.c, 跑在特权模式)
   ├── HAL_Init()
   ├── SystemClock_Config() — HSE 25MHz → PLL → 96MHz
   ├── GPIO / DMA / NVIC 初始化
@@ -595,45 +687,46 @@ Phase 0: main() — 硬件初始化 (main.c, 跑在特权模式)
 Phase 1: freertos.c — 内核 + IPC 创建
   ├── osKernelInitialize()
   ├── 创建 IPC 对象:
-  │     ├── q_ble_msg         = xQueueCreate(4, sizeof(ble_msg_t))
-  │     ├── q_save_req        = xQueueCreate(4, sizeof(save_req_t))
-  │     ├── q_power_event     = xQueueCreate(4, sizeof(power_evt_t))
-  │     ├── eg_sleep          = xEventGroupCreate()
-  │     └── eg_sys_state      = xEventGroupCreate()
+  │     ├── g_q_ble_msg         = xQueueCreate(4, sizeof(ble_msg_t))
+  │     ├── g_q_save_req        = xQueueCreate(4, sizeof(save_req_t))
+  │     ├── g_q_power_event     = xQueueCreate(4, sizeof(power_evt_t))
+  │     ├── g_eg_sleep          = xEventGroupCreate()
+  │     └── g_eg_sys_state      = xEventGroupCreate()
   ├── 创建 6 任务 (全部挂起: osThreadNew 默认挂起或创建后 vTaskSuspend)
-  │     ├── LvglTask
-  │     ├── I2CSensTask
-  │     ├── BtTask  (Phase 3)
-  │     ├── SaveTask (Phase 4)
-  │     ├── PowerTask
-  │     └── DiagTask
+  │     ├── LvglTask      (文件: App/Framework/lvgl_task.c)
+  │     ├── I2CSensTask   (文件: App/Framework/i2c_sens_task.c)
+  │     ├── BtTask        (文件: App/Framework/bt_task.c, Phase 3)
+  │     ├── SaveTask      (文件: App/Framework/save_task.c, Phase 4)
+  │     ├── PowerTask     (文件: App/Framework/power_task.c)
+  │     └── DiagTask      (文件: App/Framework/diag_task.c)
   └── osKernelStart()
          │
          ▼
 Phase 2: 每个任务的 Self-Test
   各任务自行初始化, 完成后向 DiagTask 注册心跳:
   
-  LvglTask:
+  LvglTask (App/Framework/lvgl_task.c):
     ├── lv_init() → lv_port_disp_init() → lv_port_indev_init()
     ├── w25q64_fs_init() (如需要)
     ├── app_init() → PageManager 创建首页
     └── heartbeat_register(TASK_LVGL, 1000)
   
-  I2CSensTask:
-    ├── CST816_Init()
+  I2CSensTask (App/Framework/i2c_sens_task.c):
+    ├── 调用 BSP 驱动: CST816_Init() (BSP/Touch/)
     ├── I2C 总线扫描 0x01~0x7F → 记录已连接设备
-    ├── 逐个初始化在线传感器 (DS3231/BME280/QMI8658/MAX30102)
+    ├── 逐个初始化在线传感器 (调 BSP/RTC/, BSP/ENV/, BSP/IMU/, BSP/HR/)
     ├── 标记离线传感器为 SENS_FAILED
     └── heartbeat_register(TASK_I2CSENS, 200)
+    ※ 此任务不直接操作 I2C 寄存器 — 它调用 BSP 层函数。
   
-  PowerTask:
+  PowerTask (App/Framework/power_task.c):
     ├── ADC 校准
     ├── 读初始电池电压
     └── heartbeat_register(TASK_POWER, 3000)
   
-  DiagTask:
+  DiagTask (App/Framework/diag_task.c):
     ├── 读 RCC_GetResetFlags() → 记录复位原因
-    ├── UART2 输出系统信息
+    ├── RTT 输出系统信息
     └── 等待所有任务首轮心跳
          │
          ▼
@@ -644,9 +737,9 @@ Phase 3: Ready → Run
 
 ---
 
-## 九、故障恢复策略
+## 十、故障恢复策略
 
-### 9.1 故障分级
+### 10.1 故障分级
 
 | 级别 | 现象 | 恢复策略 |
 |:--:|------|---------|
@@ -657,11 +750,16 @@ Phase 3: Ready → Run
 | **L5** | 软复位 3 次内重演 | 进入 Safe Mode (仅 表盘+触摸) |
 | **L6** | IWDG 复位 | 记录原因 → 正常启动 |
 
-### 9.2 传感器接口抽象
+### 10.2 传感器接口抽象
 
 ```c
 // ============================================================
-// sens_driver.h — 传感器驱动统一接口
+// sens_driver.h — 传感器驱动统一接口 (App/Framework/)
+//
+// 注意: 此文件定义的是 APP 层的抽象接口 (虚函数表模式)。
+//       具体的 BSP 驱动实现在 BSP/xxx/ 目录下。
+//       BSP 文件不知道这个接口存在 — 它们只导出函数。
+//       由 I2CSensTask 负责把 BSP 函数指针填入虚函数表。
 // ============================================================
 
 typedef enum {
@@ -680,14 +778,15 @@ typedef struct {
     uint8_t   retry_count;
     uint32_t  last_error_tick;
 
-    /* 虚函数表 — 每个传感器填自己的实现 */
+    /* 虚函数表 — 指向 BSP 层的具体实现
+       例如: .init = ds3231_init (BSP/RTC/ds3231.c) */
     sens_init_result_t (*init)(void);
     uint8_t            (*read)(void);       // 返回 HAL_OK 或 HAL_ERROR
     void               (*sleep)(void);
     void               (*wakeup)(void);
 } sens_driver_t;
 
-// 宏: 驱动注册
+// 宏: 驱动注册 — 在 I2CSensTask 中使用
 #define SENS_DEFINE(name, addr) \
     static sens_driver_t sens_##name = { \
         .i2c_addr = addr, \
@@ -699,10 +798,11 @@ typedef struct {
     }
 ```
 
-### 9.3 传感器读取包装 (带故障恢复)
+### 10.3 传感器读取包装 (带故障恢复)
 
 ```c
-// I2CSensTask 内部
+// I2CSensTask (App/Framework/i2c_sens_task.c) 内部
+// 注: 这里调用的 drv->read() 指向 BSP 层函数 (如 bme280_read())
 static void sens_read_with_retry(sens_driver_t *drv, uint8_t *health_flag)
 {
     if (drv->state == SENS_FAILED) {
@@ -715,7 +815,7 @@ static void sens_read_with_retry(sens_driver_t *drv, uint8_t *health_flag)
         }
     }
 
-    uint8_t rc = drv->read();
+    uint8_t rc = drv->read();   // ← 调 BSP 函数, 不调 HAL
 
     if (rc == HAL_OK) {
         drv->state = SENS_OK;
@@ -736,9 +836,9 @@ static void sens_read_with_retry(sens_driver_t *drv, uint8_t *health_flag)
 
 ---
 
-## 十、看门狗与心跳监控
+## 十一、看门狗与心跳监控
 
-### 10.1 双层看门狗
+### 11.1 双层看门狗
 
 ```
 Layer 1 — IWDG (硬件)
@@ -750,15 +850,15 @@ Layer 1 — IWDG (硬件)
 Layer 2 — 软件心跳 (应用层)
   ├── 每个任务注册心跳超时值
   ├── DiagTask 每 1s 扫描所有任务心跳
-  ├── 超时 → UART2 打印 "DEAD: TaskName (last: Xms)"
+  ├── 超时 → RTT 输出 "DEAD: TaskName (last: Xms)"
   └── → 软复位 (NVIC_SystemReset)
 ```
 
-### 10.2 心跳 API
+### 11.2 心跳 API
 
 ```c
 // ============================================================
-// heartbeat.h — 任务心跳监控
+// heartbeat.h — 任务心跳监控 (App/Framework/)
 // ============================================================
 
 #define MAX_MONITORED_TASKS  6
@@ -780,10 +880,10 @@ void heartbeat_tick(task_id_t id);  // 任务主循环中调用
 void heartbeat_monitor_all(void);   // DiagTask 每 1s 调用
 ```
 
-### 10.3 实现
+### 11.3 实现
 
 ```c
-// heartbeat.c
+// heartbeat.c (App/Framework/)
 
 typedef struct {
     uint32_t last_tick;
@@ -816,12 +916,12 @@ void heartbeat_monitor_all(void)
         
         if (now - g_heartbeats[i].last_tick > g_heartbeats[i].timeout_ms) {
             g_heartbeats[i].dead_count++;
-            diag_printf("[DEAD] Task %d timeout (%lu ms, #%lu)\r\n",
+            log_printf("[DEAD] Task %d timeout (%lu ms, #%lu)\r\n",
                         i, g_heartbeats[i].timeout_ms, g_heartbeats[i].dead_count);
             
             if (g_heartbeats[i].dead_count >= 3) {
-                diag_printf("[FATAL] Soft reset\r\n");
-                HAL_Delay(50);  // 等 UART 发完
+                log_printf("[FATAL] Soft reset\r\n");
+                HAL_Delay(50);  // 等 RTT 发完
                 NVIC_SystemReset();
             }
         } else {
@@ -833,99 +933,118 @@ void heartbeat_monitor_all(void)
 
 ---
 
-## 十一、文件目录结构
+## 十二、文件目录结构
 
 ```
 XiYang_Watch/
 │
-├── Core/
+├── Core/                                    ← Layer: HAL Init (CubeMX autogen)
 │   ├── Inc/
-│   │   └── FreeRTOSConfig.h        ← configUSE_TICKLESS_IDLE=1
+│   │   ├── FreeRTOSConfig.h                 ← configUSE_TICKLESS_IDLE=1
+│   │   ├── main.h
+│   │   ├── stm32f4xx_hal_conf.h
+│   │   └── gpio.h / i2c.h / spi.h / ...
 │   └── Src/
-│       ├── main.c                   ← Phase 0 硬件初始化
-│       ├── freertos.c               ← Phase 1 任务+IPC创建
-│       └── stm32f4xx_it.c           ← 中断服务
+│       ├── main.c                           ← Phase 0 硬件初始化
+│       ├── freertos.c                       ← Phase 1 IPC+任务创建
+│       ├── stm32f4xx_it.c                   ← 中断服务
+│       ├── i2c.c / spi.c / usart.c / ...    ← CubeMX 外设 Init
+│       └── system_stm32f4xx.c
 │
-├── App/
-│   ├── app.c / app.h                ← app_init / app_loop
+├── App/                                     ← Layer 5: Application
+│   ├── app.c / app.h                        ← app_init / app_loop
 │   │
-│   ├── Framework/
-│   │   ├── ipc_defs.h              ← 所有 Queue/EventGroup 声明
-│   │   ├── ipc_defs.c              ← IPC 对象定义 (全局句柄)
-│   │   ├── heartbeat.h             ← 心跳注册宏/API
-│   │   ├── heartbeat.c             ← 心跳监控实现
-│   │   ├── shared_memory.h         ← g_shm 结构体定义
-│   │   ├── shared_memory.c         ← g_shm 实例定义
-│   │   ├── sens_driver.h           ← 传感器驱动抽象接口
-│   │   ├── error_handler.h         ← 错误码 + 故障记录
-│   │   ├── error_handler.c
-│   │   ├── page_manager.h          ← (已有)
-│   │   ├── page_manager.c          ← (已有)
-│   │   ├── gesture.h               ← (已有)
-│   │   └── gesture.c               ← (已有)
+│   ├── Framework/                           ← 所有 FreeRTOS 任务 + IPC 基础设施
+│   │   ├── ipc_defs.h / ipc_defs.c          ← [已有] Queue/EventGroup 声明+定义
+│   │   ├── shared_memory.h / shared_memory.c ← [已有] g_shm 结构体+实例
+│   │   ├── heartbeat.h / heartbeat.c        ← [已有] 心跳注册/报到/监控
+│   │   ├── log_port.h / log_port.c          ← [已有] SEGGER_RTT 日志接口
+│   │   ├── sens_driver.h                    ← [待建] 传感器驱动抽象接口
+│   │   ├── error_handler.h / error_handler.c← [待建] 错误码 + 故障记录
+│   │   │
+│   │   ├── lvgl_task.h / lvgl_task.c        ← [待建] LvglTask: LVGL渲染+PageMgr
+│   │   ├── diag_task.h / diag_task.c        ← [已有] DiagTask: 心跳+IWDG+日志
+│   │   ├── power_task.h / power_task.c      ← [已有] PowerTask: 电池+低功耗
+│   │   ├── i2c_sens_task.h / i2c_sens_task.c← [待建] I2CSensTask: 5传感器采集
+│   │   ├── bt_task.h / bt_task.c            ← [待建] BtTask: BLE协议栈
+│   │   ├── save_task.h / save_task.c        ← [待建] SaveTask: Flash持久化
+│   │   │
+│   │   ├── page_manager.h / page_manager.c  ← [已有] 页面导航
+│   │   ├── gesture.h / gesture.c            ← [已有] 手势识别
+│   │   └── status_bar.h / status_bar.c      ← [已有] 状态栏
 │   │
 │   ├── Data/
-│   │   ├── data_provider.h         ← (已有, 改指向 g_shm)
-│   │   └── data_provider.c         ← (已有, 去除 USE_FAKE_DATA)
+│   │   ├── data_provider.h                  ← [已有, 待改为读 g_shm]
+│   │   └── data_provider.c                  ← [已有, 待去除 USE_FAKE_DATA]
 │   │
-│   └── Pages/                       ← (已有, 保持不变)
+│   └── Pages/                               ← [已有, 保持不变]
 │       ├── page_watchface.c
 │       ├── page_heartrate.c
 │       ├── page_control_center.c
 │       ├── page_menu.c
 │       ├── ...
-│       └── pages_config.h
+│       └── pages_config.h / pages_config.c
 │
-├── BSP/
-│   ├── I2CSens/
-│   │   ├── i2c_sens_task.h         ← I2CSensTask 入口
-│   │   ├── i2c_sens_task.c         ← 主循环 + 传感器调度表
-│   │   └── i2c_bus_scan.c          ← I2C 总线扫描工具
-│   │
-│   ├── Touch/
-│   │   ├── touch_cst816s.h         ← (已有, 保持)
-│   │   └── touch_cst816s.c         ← (已有, 保持)
-│   │
-│   ├── IMU/
-│   │   ├── qmi8658.h
-│   │   └── qmi8658.c               ← 新驱动 (Phase 2)
-│   │
-│   ├── HR/
-│   │   ├── max30102.h
-│   │   └── max30102.c              ← 新驱动 (Phase 2)
-│   │
-│   ├── ENV/
-│   │   ├── bme280.h
-│   │   └── bme280.c                ← 新驱动 (Phase 2)
-│   │
-│   ├── RTC/
-│   │   ├── ds3231.h
-│   │   └── ds3231.c                ← 新驱动 (Phase 2)
+├── BSP/                                     ← Layer 4: 纯硬件驱动 (ZERO FreeRTOS)
 │   │
 │   ├── LCD/
-│   │   ├── lcd_st7789.h            ← (已有)
-│   │   └── lcd_st7789.c            ← (已有)
+│   │   ├── lcd_st7789.h                     ← [已有] 需修 include guard
+│   │   └── lcd_st7789.c
+│   │
+│   ├── Touch/
+│   │   ├── touch_cst816s.h                  ← [已有] 需修 include guard
+│   │   └── touch_cst816s.c
 │   │
 │   ├── Flash/
-│   │   ├── w25q64.h                ← (已有)
-│   │   ├── w25q64.c                ← (已有)
-│   │   ├── w25q64_port.h
-│   │   └── w25q64_port.c
+│   │   ├── w25q64.h / w25q64.c              ← [已有]
+│   │   ├── w25q64_port.h / w25q64_port.c    ← [已有]
+│   │   ├── w25q64_fs.h / w25q64_fs.c        ← [已有]
+│   │   └── w25q64_program.h / w25q64_program.c ← [已有]
+│   │
+│   ├── RTC/
+│   │   ├── ds3231.h                         ← [待建, Phase 2 Step 5]
+│   │   └── ds3231.c                         ← 只导出 init/read/sleep/wake
+│   │
+│   ├── ENV/
+│   │   ├── bme280.h                         ← [待建, Phase 2 Step 6]
+│   │   └── bme280.c                         ← 只导出 init/read/sleep/wake
+│   │
+│   ├── IMU/
+│   │   ├── qmi8658.h                        ← [待建, Phase 2 Step 7]
+│   │   └── qmi8658.c                        ← 只导出 init/read_accel/read_gyro
+│   │
+│   ├── HR/
+│   │   ├── max30102.h                       ← [待建, Phase 2 Step 8]
+│   │   └── max30102.c                       ← 只导出 init/read_fifo/sleep
 │   │
 │   └── BLE/
-│       ├── esp32_at.h              ← (Phase 3)
-│       └── esp32_at.c
+│       ├── esp32_at_hal.h                   ← [待建, Phase 3]
+│       └── esp32_at_hal.c                   ← UART 收发 + AT 命令封装 ONLY
+│           ※ NO bt_task.c here! 任务逻辑在 App/Framework/bt_task.c
 │
-├── Middlewares/
-│   └── LVGL/
-│       ├── porting/
-│       │   ├── lv_port_disp.c      ← (已有)
-│       │   └── lv_port_indev.c     ← 改: 从 g_shm.touch 读, 不直接调 CST816
-│       └── lv_conf.h
+├── Drivers/                                 ← Layer 3: STM32 HAL (只读)
+│   ├── CMSIS/
+│   └── STM32F4xx_HAL_Driver/
+│
+├── Middlewares/                             ← Layer 2: 第三方库
+│   ├── FreeRTOS/
+│   ├── LVGL/
+│   │   ├── porting/
+│   │   │   ├── lv_port_disp.c               ← [已有]
+│   │   │   └── lv_port_indev.c              ← [待改: 改为从 g_shm.touch 读]
+│   │   └── lv_conf.h
+│   └── SEGGER_RTT/
+│       ├── SEGGER_RTT.c / SEGGER_RTT.h
+│       ├── SEGGER_RTT_Conf.h
+│       └── SEGGER_RTT_printf.c
+│
+├── EIDE/                                    ← IDE 项目配置
+│   └── .eide/
+│       └── eide.yml
 │
 └── Docs/
-    ├── system_architecture.md      ← 本文档
-    ├── architecture.md             ← (已有, 旧版)
+    ├── system_architecture.md               ← 本文档 (v4.1)
+    ├── architecture.md                      ← (旧版, 保留参考)
     ├── learning/
     │   ├── 01_ST7789_驱动原理与SPI通信详解.md
     │   ├── 02_CST816S_驱动原理与I2C通信详解.md
@@ -933,22 +1052,55 @@ XiYang_Watch/
     └── pin_assignment.md
 ```
 
+### 为什么任务文件在 App/Framework/ 而不在 BSP/
+
+| 原因 | 说明 |
+|------|------|
+| **行业标准** | Zephyr: app/ 放线程, drivers/ 放驱动。STM32Cube: Application/ 放任务, BSP/ 放驱动。NXP: source/ 放应用, board/ 放板级。没有任何 RTOS 项目把任务放在 BSP 目录下。 |
+| **可移植性** | 从 STM32F411 换到其他 MCU 时，只需重写 BSP + Drivers 层。App/Framework/ 的代码不依赖具体芯片型号。 |
+| **可测试性** | 可以 Mock BSP 函数在 PC 上对任务逻辑跑单元测试。如果任务直接调 HAL，就无法脱离硬件测试。 |
+| **编译顺序** | BSP 可以脱离 FreeRTOS 编译为独立库，用于硬件 bring-up 测试。如果 BSP 文件 include 了 FreeRTOS.h，就无法独立编译。 |
+| **心智模型** | "BSP 回答硬件能做什么 (WHAT)。任务决定什么时候做 (WHEN)。" 简单，可教，不会混淆。 |
+| **OV_Watch 参考** | 13 个任务全在 `User/Tasks/`。`BSP/MPU6050/`、`BSP/AHT21/` 只有纯驱动 `.c/.h` 文件。 |
+
 ---
 
-## 十二、编码规范
+## 十三、编码规范
 
-### 12.1 命名规则
+### 13.1 Include Guard 规范
+
+```
+❌ 禁止: 双下划线开头或包含双下划线 (C 标准保留给编译器):
+    #ifndef __TOUCH_CST816S_H__   ← 禁止!
+    #ifndef __LEC_ST7789_H__      ← 禁止! 还有 LEC 拼写错误
+
+✅ 正确: 全大写 + 单下划线 (与已有 Framework 文件一致):
+    #ifndef TOUCH_CST816S_H
+    #define TOUCH_CST816S_H
+
+    #ifndef HEARTBEAT_H
+    #define HEARTBEAT_H
+
+    #ifndef IPC_DEFS_H
+    #define IPC_DEFS_H
+
+已有文件需修正 (Phase 2 Step 0):
+  - BSP/Touch/touch_cst816s.h:  __TOUCH_CST816S_H__ → TOUCH_CST816S_H  [已完成]
+  - BSP/LCD/lcd_st7789.h:       __LEC_ST7789_H__    → LCD_ST7789_H     [已完成]
+```
+
+### 13.2 命名规则
 
 ```c
 // 全局变量: g_ 前缀
 volatile shared_mem_t g_shm;
-QueueHandle_t         g_q_ble_msg;  // 旧代码兼容, 新 IPC 全用 Framework 里定义
+QueueHandle_t         g_q_ble_msg;
 
 // 静态变量: s_ 前缀
 static uint32_t s_last_tick;
-static sens_driver_t s_driver_ds3231;
+static IWDG_HandleTypeDef s_hiwdg;
 
-// 常量: k_ 前缀
+// 常量: k_ 前缀 (暂未使用, 留予将来)
 static const uint8_t k_i2c_addrs[] = {0x15, 0x68, 0x76, 0x6A, 0x57};
 
 // 宏: 全大写 + 下划线
@@ -964,7 +1116,7 @@ void sens_read_with_retry(sens_driver_t *drv, uint8_t *flag);
 uint8_t cst816_get_finger_num(void);
 ```
 
-### 12.2 HAL 返回值检查
+### 13.3 HAL 返回值检查
 
 ```c
 // ❌ 不允许: 直接调用, 忽略返回值
@@ -979,143 +1131,139 @@ if (rc != HAL_OK) {
 }
 ```
 
-### 12.3 任务函数标准模板
+### 13.4 任务函数标准模板
 
 ```c
+// ============================================================
+// 模板: App/Framework/ 下的任务文件
+// ============================================================
+
 void ExampleTask(void *pvParameters)
 {
     // ═══ 阶段 1: 初始化 ═══
-    // 硬件初始化, 分配资源 (不允许 malloc, 用静态或栈分配)
+    // 调用 BSP 函数初始化硬件 (不直接调 HAL)
+    // 分配资源 (用静态或栈变量, 不 malloc)
     
     // ═══ 阶段 2: 自检 ═══
     // 验证硬件是否在线, 通信是否正常
     
     // ═══ 阶段 3: 注册心跳 ═══
-    heartbeat_register(TASK_EXAMPLE, 1000);  // 1s 超时
+    heartbeat_register(TASK_EXAMPLE, 1000);
     
     // ═══ 阶段 4: 主循环 ═══
     while (1)
     {
         // 4a. 接收 IPC 消息 (Queue / Notify / EventGroup)
-        // 4b. 处理业务逻辑
+        // 4b. 处理业务逻辑 (调 BSP 函数读写硬件)
         // 4c. 发送 IPC 消息
         // 4d. 更新心跳
         heartbeat_tick(TASK_EXAMPLE);
         
-        // 4e. 阻塞等待 (vTaskDelay / 队列阻塞 / 信号量)
-        //     ↑ 必须有这一步, 不能空转! ↑
+        // 4e. 阻塞等待 (必须有这一步, 不能空转)
+        vTaskDelay(pdMS_TO_TICKS(5));
     }
 }
 ```
 
-### 12.4 禁止模式清单
+### 13.5 禁止模式清单
 
 ```c
-// ❌ 禁止 1: 忙等
+// ❌ 禁止 1: BSP 文件 include FreeRTOS 头文件
+// 文件: BSP/IMU/qmi8658.c
+#include "FreeRTOS.h"   // ← 禁止! BSP 不依赖 RTOS
+
+// ❌ 禁止 2: 任务文件放在 BSP 目录下
+// 错误路径: BSP/I2CSens/i2c_sens_task.c  ← 禁止!
+// 正确路径: App/Framework/i2c_sens_task.c ← 正确
+
+// ❌ 禁止 3: 忙等
 while (SPI_IS_BUSY()) {}  // CPU 100%
 
-// ❌ 禁止 2: 驱动层调应用层
+// ❌ 禁止 4: 驱动层调应用层
 void cst816_read(void) {
-    lvgl_update_ui();  // 层次颠倒!
+    lvgl_update_ui();  // BSP 不知道 App 的存在
 }
 
-// ❌ 禁止 3: 跨任务直接调函数
-// LvglTask 中:
-bt_send_message("hello");  // 直接调 BtTask 的函数!
+// ❌ 禁止 5: 跨任务直接调函数 (应走 IPC)
+bt_send_message("hello");  // LvglTask 直接调 BtTask 的函数
 
-// ❌ 禁止 4: HAL_Delay 在 FreeRTOS 任务中 (阻塞调度器)
+// ❌ 禁止 6: HAL_Delay 在 FreeRTOS 任务中 (阻塞调度器)
 HAL_Delay(100);  // 应该用 vTaskDelay(pdMS_TO_TICKS(100))
 
-// ❌ 禁止 5: 运行时 malloc/free
-uint8_t *buf = malloc(256);  // 碎片!
-// 应该用栈变量或静态缓冲区
+// ❌ 禁止 7: 运行时 malloc/free
+uint8_t *buf = malloc(256);  // 碎片! 用栈变量或静态缓冲区
 ```
 
 ---
 
-## 十三、Phase 2 实施路线图
+## 十四、Phase 2 实施路线图
 
 > **当作填空题, 按步骤做, 每步做完可独立验证。**
 
-### Step 0: 环境检查
+### Step 0: 环境检查 + Include Guard 修正
 
-- [ ] 确认 `FreeRTOSConfig.h` 关键配置:
+- [x] 确认 `FreeRTOSConfig.h` 关键配置:
   ```c
   #define configUSE_TICKLESS_IDLE          1
   #define configCHECK_FOR_STACK_OVERFLOW   2
   #define configUSE_TASK_NOTIFICATIONS     1
   #define configTICK_RATE_HZ               1000
   ```
-- [ ] 确认 UART2 可用 (PA2 TX, 115200)
-- [ ] 确认 I2C1 工作正常 (用 CST816_Test 验证)
+- [x] 确认 UART2 可用 (PA2 TX, 115200)
+- [x] 确认 I2C1 工作正常 (用 CST816_Test 验证)
+- [x] 修正 Include Guard: `touch_cst816s.h`, `lcd_st7789.h`
 
-### Step 1: IPC 基础设施 (预计 2h)
+### Step 1: IPC 基础设施 (已完成 ✅)
 
 创建文件:
-- `App/Framework/ipc_defs.h` + `ipc_defs.c`
-- `App/Framework/shared_memory.h` + `shared_memory.c`
-- `App/Framework/heartbeat.h` + `heartbeat.c`
+- `App/Framework/ipc_defs.h` + `ipc_defs.c` ✅
+- `App/Framework/shared_memory.h` + `shared_memory.c` ✅
+- `App/Framework/heartbeat.h` + `heartbeat.c` ✅
 
-创建全局对象:
-```c
-// ipc_defs.c
-QueueHandle_t    g_q_ble_msg;
-QueueHandle_t    g_q_save_req;
-QueueHandle_t    g_q_power_event;
-EventGroupHandle_t g_eg_sleep;
-EventGroupHandle_t g_eg_sys_state;
-
-// shared_memory.c
-volatile shared_mem_t g_shm = {0};
-```
-
-验证: 编译通过, 无链接错误
-
-### Step 2: DiagTask (预计 1h)
+### Step 2: DiagTask + SEGGER_RTT (已完成 ✅)
 
 ```c
-// 新文件: App/Framework/diag_task.c
+// App/Framework/diag_task.c  — 系统诊断任务
 void DiagTask(void *pvParameters)
 {
     // 读复位原因
     uint32_t rst_flag = __HAL_RCC_GET_FLAG(RCC_FLAG_IWDGRSTF);
     __HAL_RCC_CLEAR_RESET_FLAGS();
     
-    diag_printf("\r\n=== XiYangWatch v1.0 ===\r\n");
-    diag_printf("Reset: %s\r\n", rst_flag ? "IWDG" : "POR");
+    log_printf("\r\n=== XiYangWatch v1.0 ===\r\n");
+    log_printf("Reset: %s\r\n", rst_flag ? "IWDG" : "POR");
     
-    // 注册心跳 (自己监控自己)
     heartbeat_register(TASK_DIAG, 3000);
     
     while (1) {
         heartbeat_monitor_all();  // 扫描所有任务
         
-        // 内存统计
-        diag_printf("[DIAG] FreeHeap:%u LVGL:StackHWM:%u\r\n",
+        log_printf("[DIAG] HeapFree:%u LvglStackHWM:%u\r\n",
                     xPortGetFreeHeapSize(),
-                    uxTaskGetStackHighWaterMark(NULL));  // NULL=自己
+                    uxTaskGetStackHighWaterMark(NULL));
         
+        HAL_IWDG_Refresh(&s_hiwdg);
         heartbeat_tick(TASK_DIAG);
         vTaskDelay(pdMS_TO_TICKS(1000));
     }
 }
 ```
 
-验证: 启动后 UART2 看到启动横幅 + 内存统计
+验证: RTT Viewer 看到启动横幅 + 内存统计 ✅
 
-### Step 3: PowerTask (预计 1.5h)
+### Step 3: PowerTask (已完成 ✅)
 
 ```c
-// 新文件: App/Framework/power_task.c
+// App/Framework/power_task.c  — 电源管理任务
 void PowerTask(void *pvParameters)
 {
     heartbeat_register(TASK_POWER, 3000);
     
     while (1) {
-        // TODO: ADC 读电池
-        g_shm.power.battery_pct = 85;  // 先写死, 后面接 ADC
+        // TODO: ADC 读电池 (当前写死 85%)
+        g_shm.power.battery_pct = 85;
         
-        // TODO: 休眠状态机 (先只做 ACTIVE, STOP 后面加)
+        // TODO: 休眠状态机 (当前只做 ACTIVE)
         
         heartbeat_tick(TASK_POWER);
         vTaskDelay(pdMS_TO_TICKS(1000));
@@ -1123,29 +1271,38 @@ void PowerTask(void *pvParameters)
 }
 ```
 
-验证: 任务跑起来, 心跳正常
+验证: 任务跑起来, 心跳正常 ✅
 
 ### Step 4: I2CSensTask — 触摸搬迁 (预计 2h)
 
-这是 Phase 2 最关键的步骤:
+这是 Phase 2 最关键的步骤。
+
+**关键架构修正 (v4.1):**
+- 任务文件位于 `App/Framework/i2c_sens_task.c` (不是 `BSP/I2CSens/`!)
+- 任务函数调用 BSP 层的 `CST816_GetFingerNum()` 等函数
+- BSP 文件 (`BSP/Touch/touch_cst816s.c`) 不感知 FreeRTOS、g_shm、TaskNotify
 
 ```c
-// 新文件: BSP/I2CSens/i2c_sens_task.c
-#include "cmsis_os.h"
-#include "touch_cst816s.h"
-#include "shared_memory.h"
-#include "heartbeat.h"
+// App/Framework/i2c_sens_task.c — I2CSensTask 主循环
+// ============================================================
+// 此文件属于 App 层: 使用 FreeRTOS API、读写 g_shm、注册心跳。
+// 它调用 BSP 层函数来操作硬件，但不直接调用 HAL。
+// ============================================================
 
-// LvglTask 的句柄 (外部声明, 用于 TaskNotify)
-extern TaskHandle_t g_lvgl_task_handle;
+#include "cmsis_os.h"
+#include "touch_cst816s.h"     // BSP/Touch/  — cst816_get_finger_num()
+#include "shared_memory.h"     // App/Framework/ — g_shm
+#include "heartbeat.h"         // App/Framework/ — heartbeat_register
+#include "log_port.h"          // App/Framework/ — log_printf
+
+extern TaskHandle_t g_lvgl_task_handle;  // 用于 TaskNotify
 
 void I2CSensTask(void *pvParameters)
 {
-    // ① 触摸初始化
+    // ① 触摸初始化 (调 BSP 函数)
     CST816_Init();
     
-    // ② I2C 总线扫描 (看看还有哪些设备在线)
-    // i2c_bus_scan();  ← 先不写, 后面补
+    // ② I2C 总线扫描 (后面补)
     
     // ③ 注册心跳
     heartbeat_register(TASK_I2CSENS, 200);
@@ -1154,7 +1311,7 @@ void I2CSensTask(void *pvParameters)
     
     while (1)
     {
-        // ④ 读触摸 (每周期)
+        // ④ 读触摸 (每周期, 调 BSP 函数)
         if (cst816_get_finger_num() != 0x00 && cst816_get_finger_num() != 0xFF) {
             Touch_Info_t info;
             CST816_GetTouch(&info);
@@ -1168,15 +1325,8 @@ void I2CSensTask(void *pvParameters)
         xTaskNotify(g_lvgl_task_handle, 0, eNoAction);  // 通知 LVGL
         
         // ⑤ 其他传感器 (按频率分档, 后面补)
-        // [每200次] DS3231
-        // [每200次] BME280
-        // [每4次]   QMI8658
-        // [每10次]  MAX30102
         
-        // ⑥ 传感器健康状态
-        g_shm.sens_health.touch = SENS_OK;
-        
-        // ⑦ 心跳 + 阻塞
+        // ⑥ 心跳 + 阻塞
         heartbeat_tick(TASK_I2CSENS);
         counter++;
         vTaskDelay(pdMS_TO_TICKS(5));
@@ -1187,8 +1337,8 @@ void I2CSensTask(void *pvParameters)
 **同时修改 `lv_port_indev.c`**: 改为从 `g_shm.touch` 读, 不再直接调 CST816:
 
 ```c
-// lv_port_indev.c
-#include "shared_memory.h"
+// Middlewares/LVGL/porting/lv_port_indev.c
+#include "shared_memory.h"   // App/Framework/
 
 static bool touchpad_is_pressed(void)
 {
@@ -1202,38 +1352,16 @@ static void touchpad_get_xy(int32_t *x, int32_t *y)
 }
 ```
 
-**修改 `freertos.c`**: 创建 I2CSensTask + DiagTask + PowerTask:
+**修改 `freertos.c`**: 创建 I2CSensTask:
 
 ```c
-// freertos.c
-#include "shared_memory.h"
-#include "ipc_defs.h"
-#include "heartbeat.h"
+// Core/Src/freertos.c
+#include "i2c_sens_task.h"    // App/Framework/
 
-TaskHandle_t g_lvgl_task_handle;  // 供 I2CSensTask 用
+TaskHandle_t g_lvgl_task_handle;  // 供 I2CSensTask 用 TaskNotify
 
-void StartLvglTask(void *argument)
-{
-    g_lvgl_task_handle = xTaskGetCurrentTaskHandle();
-    
-    lv_init();
-    lv_port_disp_init();
-    lv_port_indev_init();  // 内部不再调 CST816_Init
-    app_init();
-    
-    heartbeat_register(TASK_LVGL, 1000);
-    
-    for (;;) {
-        uint8_t raw = CST816_GetGesture();  // ← TODO: 之后也搬走
-        // ... gesture_feed ...
-        
-        lv_timer_handler();
-        app_loop();
-        
-        heartbeat_tick(TASK_LVGL);
-        vTaskDelay(pdMS_TO_TICKS(5));
-    }
-}
+// 在 MX_FREERTOS_Init 中:
+i2cSensTaskHandle = osThreadNew(I2CSensTask, NULL, &i2cSensTask_attributes);
 ```
 
 验证: **触摸功能完全正常** — 这是最关键的 checkpoint。如果触摸不行, 回退排查, 不要继续。
@@ -1243,34 +1371,43 @@ void StartLvglTask(void *argument)
 ```
 BSP/RTC/ds3231.h + ds3231.c
 
+注意: 这是 BSP 驱动文件 — 不含 FreeRTOS.h, 不含任务。
+只导出: ds3231_init(), ds3231_read_time(), ds3231_set_time()
+
 和 CST816 套路完全一样:
   ① I2C 地址 0x68
   ② 读 7 个时间寄存器 (秒/分/时/星期/日/月/年)
-  ③ 在 I2CSensTask 里每 200 个周期读一次
+  ③ 在 I2CSensTask 里每 200 个周期调一次 ds3231_read_time()
   ④ 写 g_shm.time
   ⑤ 表盘不再读假时间
 ```
 
-验证: 表盘显示真实时间
+验证: RTT 日志打印真实时间
 
 ### Step 6: BME280 驱动 (预计 2h)
 
 ```
 BSP/ENV/bme280.h + bme280.c
 
+BSP 驱动文件 — 不含 FreeRTOS。
+导出: bme280_init(), bme280_read(), bme280_sleep(), bme280_wakeup()
+
   ① I2C 地址 0x76
   ② 初始化: 配置过采样率 / IIR滤波器 / 模式
   ③ 读温度/湿度/气压补偿寄存器
   ④ 套公式算出真实值
-  ⑤ 写 g_shm.env
+  ⑤ I2CSensTask 调用 bme280_read() → 写 g_shm.env
 ```
 
-验证: 环境页面显示真实温湿气压
+验证: RTT 日志显示真实温湿气压
 
 ### Step 7: QMI8658 驱动 (预计 2.5h)
 
 ```
 BSP/IMU/qmi8658.h + qmi8658.c
+
+BSP 驱动文件 — 不含 FreeRTOS。
+导出: qmi8658_init(), qmi8658_read_accel(), qmi8658_read_gyro()
 
   ① I2C 地址 0x6B
   ② 初始化: 配置加速度量程 / 陀螺仪量程 / ODR
@@ -1279,26 +1416,29 @@ BSP/IMU/qmi8658.h + qmi8658.c
   ⑤ 写 g_shm.imu
 ```
 
-验证: 活动页面步数变化
+验证: RTT 日志显示步数变化
 
 ### Step 8: MAX30102 驱动 (预计 3h)
 
 ```
 BSP/HR/max30102.h + max30102.c
 
+BSP 驱动文件 — 不含 FreeRTOS。
+导出: max30102_init(), max30102_read_fifo(), max30102_sleep()
+
   ① I2C 地址 0x57
   ② 初始化: 配置 LED 电流 / FIFO / 采样率
   ③ 读 FIFO → 提取红光/红外数据
   ④ 心率算法 (查表或滑动窗口)
-  ⑤ 写 g_shm.hr
+  ⑤ I2CSensTask 调 max30102_read_fifo() → 写 g_shm.hr
 ```
 
-验证: 心率页面显示真实心率
+验证: RTT 日志显示真实心率
 
 ### Step 9: data_provider 去假数据 (预计 1h)
 
 ```c
-// data_provider.c — 删除 USE_FAKE_DATA, 全部指向 g_shm
+// App/Data/data_provider.c — 删除 USE_FAKE_DATA, 全部指向 g_shm
 #include "shared_memory.h"
 
 uint8_t watch_data_get_heart_rate(void) {
@@ -1310,7 +1450,7 @@ uint32_t watch_data_get_steps(void) {
 // ... 等等
 ```
 
-验证: 所有页面数据来自真实传感器
+验证: 所有页面数据来自真实传感器 🔴 **必须接屏幕**
 
 ### Step 10: 停机整理
 
@@ -1318,10 +1458,145 @@ uint32_t watch_data_get_steps(void) {
 - [ ] 确认所有任务 while(1) 有阻塞点
 - [ ] 运行 30 分钟, 确认心跳无超时
 - [ ] 运行 30 分钟, 确认无内存泄露 (xPortGetFreeHeapSize 稳定)
+- [ ] 确认没有任何 BSP 文件 include FreeRTOS.h
 - [ ] 所有新代码加 doxygen 注释
+
+### Step 11: LvglTask 提取 (预计 0.5h)
+
+当前 `StartLvglTask()` 函数直接写在 `Core/Src/freertos.c` 中。将其提取到 App 层：
+
+```
+App/Framework/lvgl_task.h + lvgl_task.c
+
+void lvgl_task(void *pvParameters);
+
+freertos.c 改为:
+  #include "lvgl_task.h"
+  lvglTaskHandle = osThreadNew(lvgl_task, NULL, &lvglTask_attributes);
+```
+
+---
+
+## 十五、文件清册
+
+### App/Framework/ (Layer 5: Application — Tasks + IPC)
+
+| 文件 | 状态 | Phase | 说明 |
+|------|:----:|:-----:|------|
+| ipc_defs.h | ✅ | — | IPC 对象声明 (Queue/EventGroup) |
+| ipc_defs.c | ✅ | — | IPC 对象定义 |
+| shared_memory.h | ✅ | — | g_shm 结构体定义 |
+| shared_memory.c | ✅ | — | g_shm 实例 |
+| heartbeat.h | ✅ | — | 心跳 API 声明 |
+| heartbeat.c | ✅ | — | 心跳监控实现 |
+| log_port.h | ✅ | — | 日志接口 (编译期开关) |
+| log_port.c | ✅ | — | 日志实现 (SEGGER_RTT) |
+| diag_task.h | ✅ | — | DiagTask 入口 |
+| diag_task.c | ✅ | — | 诊断任务 |
+| power_task.h | ✅ | — | PowerTask 入口 |
+| power_task.c | ✅ | — | 电源管理任务 |
+| i2c_sens_task.h | 📋 | Step 4 | I2CSensTask 入口 |
+| i2c_sens_task.c | 📋 | Step 4 | I2C 传感器采集任务 |
+| lvgl_task.h | 📋 | Step 11 | LvglTask 入口 (从 freertos.c 提取) |
+| lvgl_task.c | 📋 | Step 11 | LVGL 渲染任务 |
+| sens_driver.h | 📋 | Step 4 | 传感器驱动抽象接口 |
+| error_handler.h | 📋 | Step 4 | 错误码 + 故障记录 |
+| error_handler.c | 📋 | Step 4 | 错误记录实现 |
+| bt_task.h | 📋 | Phase 3 | BtTask 入口 |
+| bt_task.c | 📋 | Phase 3 | BLE 协议任务 |
+| save_task.h | 📋 | Phase 4 | SaveTask 入口 |
+| save_task.c | 📋 | Phase 4 | Flash 存储任务 |
+| page_manager.h | ✅ | — | 页面导航 |
+| page_manager.c | ✅ | — | 页面导航实现 |
+| gesture.h | ✅ | — | 手势识别 |
+| gesture.c | ✅ | — | 手势识别实现 |
+| status_bar.h | ✅ | — | 状态栏 UI |
+| status_bar.c | ✅ | — | 状态栏 UI 实现 |
+
+### BSP/ (Layer 4: Board Support Package — Pure Drivers)
+
+| 文件 | 状态 | Phase | 说明 |
+|------|:----:|:-----:|------|
+| LCD/lcd_st7789.h | ✅ | — | ST7789 驱动 (include guard 已修) |
+| LCD/lcd_st7789.c | ✅ | — | ST7789 驱动 |
+| Touch/touch_cst816s.h | ✅ | — | CST816S 驱动 (include guard 已修) |
+| Touch/touch_cst816s.c | ✅ | — | CST816S 驱动 |
+| Flash/w25q64.h | ✅ | — | W25Q64 驱动 |
+| Flash/w25q64.c | ✅ | — | W25Q64 驱动 |
+| Flash/w25q64_port.h | ✅ | — | SPI 端口绑定 |
+| Flash/w25q64_port.c | ✅ | — | SPI 端口绑定 |
+| Flash/w25q64_fs.h | ✅ | — | Flash 简易文件系统 |
+| Flash/w25q64_fs.c | ✅ | — | Flash 简易文件系统 |
+| Flash/w25q64_program.h | ✅ | — | Flash 编程工具 |
+| Flash/w25q64_program.c | ✅ | — | Flash 编程工具 |
+| RTC/ds3231.h | 📋 | Step 5 | DS3231 纯驱动 |
+| RTC/ds3231.c | 📋 | Step 5 | DS3231 纯驱动 |
+| ENV/bme280.h | 📋 | Step 6 | BME280 纯驱动 |
+| ENV/bme280.c | 📋 | Step 6 | BME280 纯驱动 |
+| IMU/qmi8658.h | 📋 | Step 7 | QMI8658 纯驱动 |
+| IMU/qmi8658.c | 📋 | Step 7 | QMI8658 纯驱动 |
+| HR/max30102.h | 📋 | Step 8 | MAX30102 纯驱动 |
+| HR/max30102.c | 📋 | Step 8 | MAX30102 纯驱动 |
+| BLE/esp32_at_hal.h | 📋 | Phase 3 | ESP32 AT 命令 HAL 封装 |
+| BLE/esp32_at_hal.c | 📋 | Phase 3 | ESP32 AT 命令 HAL 封装 |
+
+### Middlewares/
+
+| 文件 | 状态 | 说明 |
+|------|:----:|------|
+| LVGL/porting/lv_port_disp.c | ✅ | LVGL 显示移植 |
+| LVGL/porting/lv_port_indev.c | 🔧 | 待改为从 g_shm.touch 读 (Step 4) |
+| SEGGER_RTT/SEGGER_RTT.c | ✅ | RTT 核心库 |
+| SEGGER_RTT/SEGGER_RTT_printf.c | ✅ | RTT 格式化打印 |
+
+---
+
+## 十六、BSP 驱动 API 模板
+
+以下是一个标准的 BSP 驱动文件应遵循的模式。注意：**没有 FreeRTOS 头文件，没有任务函数，没有 g_shm 引用。**
+
+```c
+// ============================================================
+// BSP/RTC/ds3231.h — 示例: 标准的 BSP 驱动头文件
+// ============================================================
+#ifndef DS3231_H
+#define DS3231_H
+
+#include <stdint.h>
+#include "i2c.h"          // ← HAL I2C handle (hi2c1), NOT FreeRTOS
+
+// BSP 驱动只导出功能函数:
+// - 返回 HAL_StatusTypeDef 或 uint8_t (HAL_OK/HAL_ERROR)
+// - 不返回 FreeRTOS 类型 (TickType_t, BaseType_t 等)
+// - 参数不包含 g_shm 引用、QueueHandle_t 等
+
+uint8_t ds3231_init(void);
+uint8_t ds3231_read_time(uint8_t *hour, uint8_t *min, uint8_t *sec,
+                          uint8_t *day, uint8_t *month, uint16_t *year);
+void    ds3231_sleep(void);
+void    ds3231_wakeup(void);
+
+// ============================================================
+// 反例 — BSP 文件绝对不能包含的内容:
+// ============================================================
+// ❌ #include "FreeRTOS.h"          ← BSP 不依赖 RTOS
+// ❌ #include "task.h"              ← BSP 不创建任务
+// ❌ #include "queue.h"             ← BSP 不使用队列
+// ❌ #include "shared_memory.h"     ← BSP 不知道 g_shm
+// ❌ #include "heartbeat.h"         ← BSP 不知道心跳
+// ❌ xTaskCreate(...)               ← BSP 没有任务函数
+// ❌ vTaskDelay(...)                ← BSP 不调用调度器 API
+// ❌ xQueueSend(...)                ← BSP 不发送消息
+// ❌ heartbeat_register(...)        ← 任务层才注册心跳
+// ❌ g_shm.xxx = ...                ← BSP 不写共享内存
+// ❌ xTaskNotify(...)               ← BSP 不通知任务
+
+#endif /* DS3231_H */
+```
 
 ---
 
 > 本文档是 XiYangWatch Phase 2 的**唯一权威参考**。  
+> v4.1 修正了 v4.0 的任务分层偏差，使其符合 Zephyr/STM32Cube/NXP/Nordic/ARM 等行业标准。
 > 代码怎么写, 怎么接, 怎么保护, 怎么写测试, 全在这里。  
 > 填空题模式: 每个 Step 的文件名和核心代码骨架已给出, 往里面填即可。

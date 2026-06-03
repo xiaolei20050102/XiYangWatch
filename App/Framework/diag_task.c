@@ -1,9 +1,13 @@
 #include "diag_task.h"
 #include "FreeRTOS.h"
+#include "cmsis_os.h"
 #include "task.h"           /* vTaskDelay, pdMS_TO_TICKS */
 #include "stm32f4xx_hal.h"  /* HAL_GetTick, HAL_IWDG, HAL_UART, __HAL_RCC */
 #include "heartbeat.h"      /* heartbeat_register / heartbeat_tick / heartbeat_monitor_all */
 #include "log_port.h"       /* log_printf — 全项目统一日志 */
+
+extern osThreadId_t lvglTaskHandle;
+extern osThreadId_t powerTaskHandle;
 
 /* IWDG 句柄 + 初始化 — 放在 DiagTask 内部，确保狗在任务跑起来之后才开始倒数 */
 static IWDG_HandleTypeDef s_hiwdg;
@@ -49,6 +53,14 @@ void DiagTask(void *pvParameters)
         /* ① 扫描所有任务心跳: 谁超过 timeout_ms 没报到就记一次,
          *    连续 3 次 → 软复位 (NVIC_SystemReset) */
         heartbeat_monitor_all();
+
+        log_printf("[DIAG] HeapFree:%u LvglStackHWM:%u\r\n",
+        xPortGetFreeHeapSize(),
+        uxTaskGetStackHighWaterMark(lvglTaskHandle));
+
+        log_printf("[DIAG] HeapFree:%u PowerStackHWM:%u\r\n",
+        xPortGetFreeHeapSize(),
+        uxTaskGetStackHighWaterMark(powerTaskHandle));        
 
         /* ② 喂硬件看门狗: IWDG 超时 2s, 每 1s 喂一次,
          *    DiagTask 一卡 → 没人喂狗 → IWDG 硬复位拯救系统 */
