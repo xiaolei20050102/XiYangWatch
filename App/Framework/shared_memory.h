@@ -60,6 +60,7 @@ typedef struct {
     uint8_t  sec;               /* 秒 (0~59)                              */
     uint8_t  day;               /* 日 (1~31)                              */
     uint8_t  month;             /* 月 (1~12)                              */
+    uint8_t  weekday;           /* 星期 (1=周日, 2=周一, ..., 7=周六)    */
     uint16_t year;              /* 年 (如 2026), uint8_t 最大只有255     */
     uint32_t last_update_tick;  /* 最后更新时间戳 (ms)                    */
 } time_data_t;
