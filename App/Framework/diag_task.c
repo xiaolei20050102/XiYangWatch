@@ -12,6 +12,7 @@
 /* 外部任务句柄 (freertos.c 中 osThreadNew 创建时返回) */
 extern osThreadId_t lvglTaskHandle;
 extern osThreadId_t powerTaskHandle;
+extern osThreadId_t I2CsensTaskHandle;
 
 /* IWDG 句柄 + 初始化 */
 static IWDG_HandleTypeDef s_hiwdg;
@@ -53,6 +54,10 @@ void DiagTask(void *pvParameters)
         log_printf("[DIAG] HeapFree:%u PowerStackHWM:%u\r\n",
                    xPortGetFreeHeapSize(),
                    osThreadGetStackSpace(powerTaskHandle));
+
+        log_printf("[DIAG] HeapFree:%u I2CSensStackHWM:%u\r\n",
+                   xPortGetFreeHeapSize(),
+                   osThreadGetStackSpace(I2CsensTaskHandle));
 
         HAL_IWDG_Refresh(&s_hiwdg);
 
