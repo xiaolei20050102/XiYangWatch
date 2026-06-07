@@ -91,8 +91,8 @@ const osThreadAttr_t powerTask_attributes = {
 osThreadId_t I2CsensTaskHandle;
 const osThreadAttr_t I2CsensTask_attributes = {
   .name = "I2CsensTask",
-  .stack_size = 128 * 4,
-  .priority = (osPriority_t) osPriorityLow,
+  .stack_size = 256 * 4,                              /* 1KB, 5 个传感器调用深 */
+  .priority = (osPriority_t) osPriorityHigh,           /* 同 LvglTask，保证触摸跟手 */
 };
 
 /* Private function prototypes -----------------------------------------------*/

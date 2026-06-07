@@ -10,7 +10,9 @@
 #include "heartbeat.h"         /* App/Framework/ — heartbeat         */
 #include "log_port.h"          /* App/Framework/ — log_printf        */
 #include "ds3231.h"            /* BSP/RTC/     — ds3231_read_time    */
-#include "bme280.h"            /* BSP/ENV/     — bme280_read          */
+#include "bme280.h"
+#include "qmi8658.h"
+#include "max30102.h"            /* BSP/ENV/     — bme280_read          */
 
 extern osThreadId_t lvglTaskHandle;
 
@@ -21,6 +23,8 @@ void I2CSensTask(void *pvParameters)
     /* 先设时间 (BME280 init 可能影响 I2C 总线) */
     ds3231_set_time(16, 0, 0, 7, 6, 7, 26);  /* 时 分 秒 日 月 星期 年 */
     bme280_init();
+    qmi8658_init();
+    max30102_init();
 
     heartbeat_register(TASK_I2CSENS, 200);
     heartbeat_tick(TASK_I2CSENS);
@@ -48,6 +52,27 @@ void I2CSensTask(void *pvParameters)
             g_shm.touch.pressed = 0;
         }
         g_shm.touch.gesture = CST816_GetGesture();
+
+        if (counter % 4 == 0) {
+            int16_t ax, ay, az, gx, gy, gz;
+            qmi8658_read(&ax, &ay, &az, &gx, &gy, &gz);
+            g_shm.imu.accel_x = ax;
+            g_shm.imu.accel_y = ay;
+            g_shm.imu.accel_z = az;
+            g_shm.imu.gyro_x  = gx;
+            g_shm.imu.gyro_y  = gy;
+            g_shm.imu.gyro_z  = gz;
+           // log_printf("[IMU] ax=%d ay=%d az=%d\r\n", ax, ay, az);
+        }
+
+        if (counter % 20 == 0) {
+            uint32_t red, ir;
+            if (max30102_read(&red, &ir) == 0) {
+                g_shm.hr.hr_bpm = 0;  /* TODO: 算法 */
+                g_shm.hr.hr_valid = (red > 5000);
+                log_printf("[HR] red=%lu ir=%lu\r\n", red, ir);
+            }
+        }
 
         if (counter % 200 == 0) {
             uint8_t h, m, s, d, mo, w;
